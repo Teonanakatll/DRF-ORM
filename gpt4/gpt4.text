@@ -1,0 +1,262 @@
+задание 1 - для наглядности результата изменил строку
+test1 = BookG.objects.filter(title__icontains='Куба').order_by('title')
+SELECT "gpt4_bookg"."id", "gpt4_bookg"."title", "gpt4_bookg"."author_id" FROM "gpt4_bookg" WHERE UPPER("gpt4_bookg"."title"::text) LIKE UPPER(%Куба%)
+ORDER BY "gpt4_bookg"."title" ASC
+
+задание 2 - для наглядности результата изменил строку
+ test2 = Author.objects.values('name').annotate(my_books=Count('books')).filter(my_books__gt=0).order_by('name')
+SELECT "gpt4_author"."name", COUNT("gpt4_bookg"."id") AS "my_books" FROM "gpt4_author" LEFT OUTER JOIN "gpt4_bookg" ON ("gpt4_author"."id" =
+"gpt4_bookg"."author_id") GROUP BY "gpt4_author"."name" HAVING COUNT("gpt4_bookg"."id") > 0 ORDER BY "gpt4_author"."name" ASC
+
+задание 3 - для наглядности результата вывел и сам рейтинг
+ test3 = Review.objects.values('book__title', 'rating').filter(rating__gt=3)
+SELECT "gpt4_bookg"."title", "gpt4_review"."rating" FROM "gpt4_review" INNER JOIN "gpt4_bookg" ON ("gpt4_review"."book_id" = "gpt4_bookg"."id") WHERE
+"gpt4_review"."rating" > 3
+
+задание 4
+test4 = BookG.objects.values('title').filter(reviews__isnull=True)
+SELECT "gpt4_bookg"."title" FROM "gpt4_bookg" LEFT OUTER JOIN "gpt4_review" ON ("gpt4_bookg"."id" = "gpt4_review"."book_id") WHERE "gpt4_review"."id" IS
+NULL
+
+задание 5
+ test5 = BookG.objects.annotate(reviews_count=Count('reviews')).order_by('-reviews_count')
+SELECT "gpt4_bookg"."id", "gpt4_bookg"."title", "gpt4_bookg"."author_id", COUNT("gpt4_review"."id") AS "reviews_count" FROM "gpt4_bookg" LEFT OUTER JOIN
+"gpt4_review" ON ("gpt4_bookg"."id" = "gpt4_review"."book_id") GROUP BY "gpt4_bookg"."id" ORDER BY 4 DESC
+
+задание 1
+test1 = BookG.objects.filter(title__icontains='Куба').order_by('author__name')
+SELECT "gpt4_bookg"."id", "gpt4_bookg"."title", "gpt4_bookg"."author_id" FROM "gpt4_bookg" INNER JOIN "gpt4_author" ON ("gpt4_bookg"."author_id" =
+"gpt4_author"."id") WHERE UPPER("gpt4_bookg"."title"::text) LIKE UPPER(%Куба%) ORDER BY "gpt4_author"."name" ASC
+
+задание 2
+test2 = Author.objects.annotate(num_books=Count('books')).filter(num_books__gt=2).order_by('num_books')
+SELECT "gpt4_author"."id", "gpt4_author"."name", COUNT("gpt4_bookg"."id") AS "num_books" FROM "gpt4_author" LEFT OUTER JOIN "gpt4_bookg" ON
+("gpt4_author"."id" = "gpt4_bookg"."author_id") GROUP BY "gpt4_author"."id" HAVING COUNT("gpt4_bookg"."id") > 2 ORDER BY 3 ASC
+
+задание 3
+test3 = Review.objects.filter(rating__gt=4).order_by('book', 'rating')
+SELECT "gpt4_review"."id", "gpt4_review"."content", "gpt4_review"."book_id", "gpt4_review"."rating" FROM "gpt4_review" WHERE "gpt4_review"."rating" > 4
+ORDER BY "gpt4_review"."book_id" ASC, "gpt4_review"."rating" ASC
+
+задание 4
+test4 = BookG.objects.filter(reviews__isnull=True).order_by('title')
+SELECT "gpt4_bookg"."id", "gpt4_bookg"."title", "gpt4_bookg"."author_id" FROM "gpt4_bookg" LEFT OUTER JOIN "gpt4_review" ON ("gpt4_bookg"."id" =
+"gpt4_review"."book_id") WHERE "gpt4_review"."id" IS NULL ORDER BY "gpt4_bookg"."title" ASC
+
+задание 5
+test5 = BookG.objects.annotate(num_reviews=Count('reviews')).order_by('-num_reviews')
+SELECT "gpt4_bookg"."id", "gpt4_bookg"."title", "gpt4_bookg"."author_id", COUNT("gpt4_review"."id") AS "num_reviews" FROM "gpt4_bookg" LEFT OUTER JOIN
+"gpt4_review" ON ("gpt4_bookg"."id" = "gpt4_review"."book_id") GROUP BY "gpt4_bookg"."id" ORDER BY 4 DESC
+
+age = randint(30, 40)
+
+genre = [
+  ['Фантастика (Science Fiction)', 'Книги о будущем, технологиях, космических путешествиях, роботах, искусственном интеллекте и альтернативных реальностях.'],
+  ['Фэнтези (Fantasy)', 'Произведения с элементами магии, вымышленных миров, мифических существ, волшебников и эпических сражений.'],
+  ['Детектив (Detective)', 'Истории о расследованиях преступлений, тайнах и разгадках загадочных происшествий.'],
+  ['Триллер (Thriller)', 'Захватывающие сюжеты с элементами напряжения, опасности и неожиданными поворотами.'],
+  ['Романтика (Romance)', 'Книги, посвященные любовным отношениям, романтическим переживаниям и личным драмам.'],
+  ['Приключения (Adventure)', 'Истории о путешествиях, смелых героях, поисках сокровищ и преодолении опасностей.'],
+  ['Исторический роман (Historical Fiction)', 'Произведения, действие которых разворачивается в определённую эпоху, часто с реальными историческими событиями.'],
+  ['Биография/Мемуары (Biography/Memoir)', 'Литература, описывающая реальную жизнь известных людей или личный опыт автора.'],
+  ['Ужасы (Horror)', 'Книги, которые вызывают страх, напряжение и тревогу через сверхъестественные или психологические элементы.'],
+  ['Научно-популярная (Non-fiction/Popular Science)', 'Книги, посвященные объяснению науки, технологий, истории и других областей знаний.'],
+  ['Юмор (Comedy)', 'Легкие и забавные произведения, наполненные сатирой, шутками и комическими ситуациями.'],
+  ['Психологическая драма (Psychological Fiction)', 'Истории, которые исследуют внутренний мир героев, их эмоции, переживания и конфликты.'],
+]
+
+pages = randint(30, 200)
+
+: def check_pr(book, pr):
+    ...:     if BookGenre.objects.filter(book=book, priority=pr).exists():
+    ...:         return 2
+    ...:     return 1
+
+
+ for book in books:
+    ...:     while book.genres.all().count() < 3:
+    ...:             genre = choice(genres)
+    ...:             book_genre, created = BookGenre.objects.get_or_create(book=book, genre=genre, priority=check_pr(book, 1))
+    ...:             if created:
+    ...:                 cons(f'Добавлен жанр "{genre.name}" к книге "{book.title}"')
+    ...:             else:
+    ...:                 cons(f'Жанр "{genre.name}" уже существует для книги "{book.title}"')
+
+
+In [43]: for i in reviews:
+    ...:     rand = randint(0, 4)
+    ...:     anon = False
+    ...:     if rand == 4:
+    ...:         anon = True
+    ...:     i.is_anonymous = anon
+    ...:     i.save()
+    ...:     cons(i.is_anonymous, 'red')
+
+
+In [70]: for i in reviews:
+    ...:     now = datetime.now()
+    ...:     time.sleep(randint(2, 10))
+    ...:     i.created_at = now
+    ...:     i.save()
+    ...:     cons(i.created_at)
+
+задание 1
+authors = Author.objects.filter(books__pages__gt='100').distinct()
+SELECT DISTINCT "gpt4_author"."id", "gpt4_author"."name", "gpt4_author"."age" FROM "gpt4_author" INNER JOIN "gpt4_bookg" ON ("gpt4_author"."id" =
+"gpt4_bookg"."author_id") WHERE "gpt4_bookg"."pages" > 100
+
+задание 2
+books = BookG.objects.annotate(avg_rating=Avg('reviews__rating')).order_by('-avg_rating')
+SELECT "gpt4_bookg"."id", "gpt4_bookg"."title", "gpt4_bookg"."author_id", "gpt4_bookg"."pages", AVG("gpt4_review"."rating") AS "avg_rating" FROM
+"gpt4_bookg" LEFT OUTER JOIN "gpt4_review" ON ("gpt4_bookg"."id" = "gpt4_review"."book_id") GROUP BY "gpt4_bookg"."id" ORDER BY 5 DESC
+
+задание 3
+books = BookG.objects.filter(genres__gt=2).distinct()
+SELECT DISTINCT "gpt4_bookg"."id", "gpt4_bookg"."title", "gpt4_bookg"."author_id", "gpt4_bookg"."pages" FROM "gpt4_bookg" INNER JOIN "gpt4_bookgenre" ON
+("gpt4_bookg"."id" = "gpt4_bookgenre"."book_id") WHERE "gpt4_bookgenre"."genre_id" > 2
+
+задание 4
+books = BookG.objects.filter(genres__name__contains='Фантастика', reviews__rating__gt=3).distinct()
+SELECT DISTINCT "gpt4_bookg"."id", "gpt4_bookg"."title", "gpt4_bookg"."author_id", "gpt4_bookg"."pages" FROM "gpt4_bookg" INNER JOIN "gpt4_bookgenre" ON
+("gpt4_bookg"."id" = "gpt4_bookgenre"."book_id") INNER JOIN "gpt4_genre" ON ("gpt4_bookgenre"."genre_id" = "gpt4_genre"."id") INNER JOIN "gpt4_review" ON
+("gpt4_bookg"."id" = "gpt4_review"."book_id") WHERE ("gpt4_genre"."name"::text LIKE %Фантастика% AND "gpt4_review"."rating" > 3)
+
+задание 5
+book = BookG.objects.all()[0]
+bookgenre = book.bookgenre_set.first()
+bookgenre.priority += 1
+bookgenre.save()
+
+
+задание 6
+с датами я вообще не умею работать
+
+задание 7
+genres = Genre.objects.annotate(count_books=Count('books'))
+SELECT "gpt4_genre"."id", "gpt4_genre"."name", "gpt4_genre"."description", COUNT("gpt4_bookgenre"."book_id") AS "count_books" FROM "gpt4_genre" LEFT OUTER
+JOIN "gpt4_bookgenre" ON ("gpt4_genre"."id" = "gpt4_bookgenre"."genre_id") GROUP BY "gpt4_genre"."id"
+
+задание 8
+непойму как сделать, ведь нужно одновременно и фильтровать и делать анотацию...
+
+
+задание 1
+authors = Author.objects.annotate(count_revs=Count('books__reviews'))
+
+задание 2
+books = BookG.objects.filter(reviews__rating__gt=4).distinct()
+
+задание 3
+genres = Genre.objects.annotate(count_bs=Count('books'))
+
+задание 4
+books = BookG.objects.filter(genres__isnull=True)
+
+задание 5
+bk = BookG.objects.order_by('-pages').first()
+
+задание 6
+bks = BookG.objects.annotate(av_rate=Avg('reviews__rating'))
+
+задание 7
+bks = BookG.objects.filter(author__name__icontains='Че Гевара', genres__name__icontains='Фантастика')
+bks2 = BookG.objects.filter(Q(author__name__icontains='Че Гевара') & Q(genres__name__contains='Фантастика'))
+
+задание 8
+books = BookG.objects.all().order_by('pages', 'date_create')
+у нас такого поля нет!
+
+задание 9
+books = BookG.objects.filter(reviews__rating__gt=3).update(Case(When(author='Иван', then=Value('черновик'))))
+этого поля тоже нет, предпологаю что запрос будет такой
+
+задание 10
+books = BookG.objects.filter(reviews__isnull=True)
+
+
+задание 1
+authors = Author.objects.filter(Q(books__pages__gt=250) & Q(books__reviews__isnull=False)).distinct()
+
+задание 2
+bkk = BookG.objects.filter(genres__gt=1).annotate(average_rate=Avg('reviews__rating')).filter(average_rate__gt=3)
+нижний вариант сделал для тренировки считаю верхний вариант лучше так как сразу сузил диапазон анотируемых книг а не выполнил аннотацию ко всем, ведь их может быть 10000)
+bkk = BookG.objects.annotate(average_rate=Avg('reviews__rating')).filter(Q(genres__gt=1) & Q(average_rate__gt=3))
+
+задание 3
+bks = BookG.objects.annotate(count_reviews=Count('reviews')).filter(count_reviews__isnull=True)
+
+задание 4
+Author.objects.annotate(all_books=Count('books')).filter(Q(all_books=1) & Q(books__title__icontains='Путешествие'))
+
+задание 5
+BookG.objects.filter(Q(genres__name__contains='Детектив') & Q(reviews__isnull=True)).distinct()
+
+задание 6
+gen = Genre.objects.filter(books__pages__lt=100).distinct()
+
+задание 7
+BookG.objects.annotate(count_reviews=Count('reviews', filter=Q(reviews__rating__lt=3))).order_by('-count_reviews')
+
+задание 8
+Author.objects.filter(books__reviews__isnull=False).distinct()
+
+задание 9
+BookG.objects.filter(pages__gt=500).annotate(avg_review_rate=Avg('reviews__rating')).order_by('-avg_review_rate')
+
+задание 10
+в этом запросе я не уверен незнаю как точно в запросе обратившись через автора выбрать именно эти книги а потом отфильтровать их по рейтингу
+Author.objects.filter(Q(books__genres__isnull=True) & Q(books__reviews__rating__gt=4))
+тут начало правильное но потом фильтр может сработать на разных книгах
+authors = Author.objects.filter(books__reviews__isnull=True).filter(Q(books__genres__isnull=True) & Q(books__reviews__rating__gt=4))
+незнаю как бы я не фильтровал мне нужно както обратиться к одной книге... напрашивается отфильтровать с испльзованием чегото вроде when(Case())... я незнаю))
+
+
+
+111
+
+
+111
+111
+111
+111
+
+
+111
+111
+111
+
+
+111
+Задание 1
+author = Author.objects.filter(Q(books__pages__gt=300) & Q(books__reviews__gt=4)).distinct()
+
+
+Задание 2
+genres = Genre.objects.filter(Q(books__reviews__rating__gt=3) & Q(books__pages__lt=100)).distinct()
+
+Задание 3
+one_year_ago = timezone.now() - timedelta(days=365)
+books = BookG.objects.filter(Q(date_create__lt=one_year_ago) & Q(reviews__isnull=True))
+
+Задание 4
+five_year_ago = timezone.now() - timedelta(days=365*5)
+author = Author.objects.filter(Q(books__date_create__lt=five_year_ago) & Q(books__pages__gt=500))
+
+
+Задание 5
+books = BookG.objects.annotate(av_rate=Avg('reviews__rating'), book_genres=Count('genres')).filter(Q(av_rate__lt=4) & Q(book_genres__gt=1))
+
+Задание 6
+av = Author.objects.filter(Q(books__genres__isnull=True) & Q(books__reviews__rating__gt=3)).distinct()
+
+Задание 7
+ bs = BookG.objects.annotate(count_rev=Count('reviews', filter=Q(reviews__rating__lt=2))).distinct()
+
+Задание 8
+ genres = Genre.objects.filter(Q(books__pages__gt=400) & Q(books__reviews__rating=5)).distinct()
+
+Задание 9
+authors = Author.objects.exclude(Q(books__reviews__rating__lt=2)).filter(books__pages__gt=300)
+
+Задание 10
+books = BookG.objects.filter(Q(reviews__isnull=False)).distinct().annotate(max_rate=Max('reviews__rating')).exclude(max_rate__gt=3)
