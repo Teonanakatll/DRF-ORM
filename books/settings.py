@@ -38,15 +38,21 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    'debug_toolbar',
     'rest_framework',
     'django_filters',
     'social_django',
     # красивая консоль,  python manage.py shell_plus --ipythonj
     # python manage.py show_urls | findstr /V "admin"  python manage.py reset_db
+
     'django_extensions',
 
     'store.apps.StoreConfig',
     'gpt4.apps.Gpt4Config',
+]
+
+INTERNAL_IPS = [
+    '127.0.0.1',
 ]
 
 MIDDLEWARE = [
@@ -57,6 +63,11 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
+    'debug_toolbar.middleware.DebugToolbarMiddleware',
+
+    # django-debug-toolbar-force, вывести gebug_toolbar на странице с json в конце урла - ?debug-toolbar &debug-toolbar
+    'debug_toolbar_force.middleware.ForceDebugToolbarMiddleware',
 ]
 
 ROOT_URLCONF = 'books.urls'

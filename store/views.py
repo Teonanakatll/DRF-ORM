@@ -1,3 +1,4 @@
+from django.db.models import Count, When, Case, Avg, F
 from django.shortcuts import render
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import mixins
@@ -12,7 +13,11 @@ from store.serializers import BooksSerializer, UserBookRelationSerializer
 
 
 class BookViewSet(ModelViewSet):
-    queryset = Book.objects.all()
+    # но если мы уберём select/prefetch_related тесты не покажут хотя запросов станет гораздо больше
+    queryset = Book.objects.annotate(annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+                                     owner_name=F('owner__username'))\
+                                     .select_related('owner').prefetch_related('readers').order_by('id')
+    # queryset =  Book.objects.all()
     serializer_class = BooksSerializer
     permission_classes = [IsOwnerOrStaffOrReadOnly]
 

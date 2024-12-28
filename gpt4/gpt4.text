@@ -228,7 +228,7 @@ authors = Author.objects.filter(books__reviews__isnull=True).filter(Q(books__gen
 
 111
 Задание 1
-author = Author.objects.filter(Q(books__pages__gt=300) & Q(books__reviews__gt=4)).distinct()
+author = Author.objects.filter(Q(books__pages__gt=300) & Q(books__reviews__rate__gt=4)).distinct()
 
 
 Задание 2
@@ -250,7 +250,7 @@ books = BookG.objects.annotate(av_rate=Avg('reviews__rating'), book_genres=Count
 av = Author.objects.filter(Q(books__genres__isnull=True) & Q(books__reviews__rating__gt=3)).distinct()
 
 Задание 7
- bs = BookG.objects.annotate(count_rev=Count('reviews', filter=Q(reviews__rating__lt=2))).distinct()
+ bs = BookG.objects.annotate(count_rev=Count('reviews', filter=Q(reviews__rating__lt=2))).filter(count_rev__gt=2).distinct()
 
 Задание 8
  genres = Genre.objects.filter(Q(books__pages__gt=400) & Q(books__reviews__rating=5)).distinct()
@@ -260,3 +260,282 @@ authors = Author.objects.exclude(Q(books__reviews__rating__lt=2)).filter(books__
 
 Задание 10
 books = BookG.objects.filter(Q(reviews__isnull=False)).distinct().annotate(max_rate=Max('reviews__rating')).exclude(max_rate__gt=3)
+
+
+задание 1
+Найди авторов, у которых есть книги с рейтингом обзора больше 4 и страницами больше 300.
+Author.objects.filter(books__reviews__rating__gt=4, books__pages__gt=300).distinct()
+
+задание 2
+Найди книги, которые имеют рейтинг в отзывах больше 3, имеют жанр "Детектив" и были созданы более 2 лет назад.
+from dateutil.relativedelta import relativedelta
+from django.utils import timezone
+two_year = timezone.now() - relativedelta(years=2)
+BookG.objects.filter(genres__name__contains='Детектив', reviews__rating__gt=3, created_at__gt=two_year).distinct()
+
+задание 3
+Найди жанры, в которых есть хотя бы одна книга с отзывами, где рейтинг меньше 2 и книга имеет меньше 200 страниц.
+Genre.objects.filter(books__reviews__rating__lt=2, books__pages__lt=200).distinct()
+
+задание 4
+Выведи авторов, у которых есть книги, не относящиеся к жанрам, но с рейтингом отзывов выше 4.
+Author.objects.filter(books__genres__isnull=True, books__reviews__gt=4).distinct()
+
+задание 5
+Найди книги, у которых хотя бы один отзыв с рейтингом меньше 3 и книга относится к жанрам, имеющим более 3 книг.
+- я незнаю как сделать один запросс както нужно отдельно подсчитать количество книг к каждому жанру.. могу в два запроса
+genres_more_3_books = Genre.objects.values('name').annotate(all_books=Count('books')).filter(all_books__gt=3)
+BookG.objects.filter(reviews__rating__lt=3, genres__in=genres_more_3_books).distinct()
+
+
+задание 6
+Найди книги, которые имеют отзывы с рейтингом больше 4 и страниц больше 500, но у которых нет жанра.
+BookG.objects.filter(genres__isnull=True, reviews__rating__gt=4, pages__gt=500)
+
+задание 7
+Выведи жанры, которые связаны с книгами, в которых хотя бы один отзыв имеет рейтинг ниже 3 и книга была опубликована в прошлом году.
+one_year = timezone.now() - relativedelta(years=1)
+Genre.objects.filter(books__reviews__rating__lt=3, books__created_at__gt=one_year).distinct()
+если нужна привязка не к отрезку год а к календарному году
+Genre.objects.filter(books__reviews__rating__lt=3, books__created_at__year__lt=2024).distinct()
+
+задание 8
+Найди авторов, чьи книги не имеют жанров, но в которых есть отзывы с рейтингом больше 4.
+Author.objects.filter(books__genres__isnull=True, books__reviews__rating__gt=4).distinct()
+
+задание 9
+Найди книги с рейтингом в отзывах меньше 2, страницами больше 100, где жанры не указаны.
+BookG.objects.filter(reviews__rating__lt=2, pages__gt=100, genres__isnull=True).distinct()
+
+задание 10
+Выведи авторов, у которых есть книги с более чем 3 жанрами и рейтинг в отзывах которых выше 3.
+Author.objects.annotate(count_genres=Count('books__genres')).filter(count__genres__gt=3, books__reviews__rating__gt=3)
+
+
+задание 1
+Используя Case и When, найдите книги, у которых рейтинг в отзывах выше 4, и добавьте новое поле с названием
+"Рейтинг_отличный", которое будет иметь значение "Да", если рейтинг больше 4, и "Нет", если меньше или равен 4.
+BookG.objects.annotate(Рейтинг_отличный=Case(When(reviews__rating__gt=4, then=Value('Да')), When(reviews__rating__lte=4, then=Value('Нет')), output_field=CharField()))
+
+задание 2
+Найдите авторов, у которых книги были созданы в 2022 году и имеют более 300 страниц. Примените Case и When для создания
+нового поля "Долгий_путь", которое будет равно "Да", если книга больше 500 страниц, и "Нет", если меньше.
+Author.objects.values('name').filter(books__created_at__year=2022, books__pages__gt=300).annotate(Долгий_путь=Case(When(books__pages__gt=500, then=Value('Да')), When(books__pages__lt=500, then=Value('Нет')), output_field=CharField()))
+ в вопросе стоит найти автором но анотировать книги, я просил задания без селект\префетч релейтед а тут кажется он...
+ потому что если я пробую просто анотировать поле и применять фильтры к обратной связи ForeignKey а в связанных моделях
+ есть поля и больше 300 и меньше и поэтому всегда выдаёт результат нет...
+
+задание 3
+Используя Q и фильтры, найдите книги, которые имеют рейтинг в отзывах больше 3 или страницы больше 400. Используйте комбинацию условий с Q.
+BookG.objects.filter(Q(reviews__rating__gt=3) | Q(pages__gt=400)).distinct()
+
+задание 4
+Используя агрегацию, найдите жанры, в которых средний рейтинг по отзывам выше 4, а количество книг больше 5.
+Genre.objects.annotate(avg_rate=Avg('books__reviews__rating'), count_books=Count('books')).filter(avg_rate__gt=4, count_books__gt=5)
+
+задание 5
+Используя агрегации и фильтрацию через F, найдите книги, в которых количество страниц больше, чем рейтинг в отзывах
+ в этом моменте не понятно чем максимальный\средний\сумма рейтинг? предположу что сумма рейтингов
+BookG.objects.annotate(sum_rate=Sum('reviews__rating')).filter(sum_rate__lt=F('pages'))
+
+задание 6
+Найдите авторов, у которых есть книги, созданные в 2019 году или позднее, и количество отзывов на книгу больше 10. Используйте агрегации для подсчёта количества отзывов
+Author.objects.annotate(all_rev=Count('books__reviews')).filter(books__created_at__year__gt=2019, all_rev__gt=10).distinct()
+
+задание 7
+Используя Case и When, создайте поле, которое будет определять, является ли книга "популярной" (если средний рейтинг
+ больше 4 и количество отзывов больше 20), или "непопулярной".
+BookG.objects.annotate(avg_rating=Avg('reviews__rating'), count_reviews=Count('reviews'), popular=Case(When(Q(avg_rating__gt=4) & Q(count_reviews__gt=20), then=Value('популярная')), default=Value('непопулярная'), output_field=CharField()))
+
+задание 8
+Найдите книги, которые были созданы в определённом временном диапазоне (например, с 2020 по 2022) и имеют рейтинг отзыва
+ больше 3. Используйте фильтрацию по датам и условию рейтинга.
+BookG.objects.filter(created_at__year__range=[2020, 2022], reviews__rating__gt=3)
+
+задание 9
+Используя Q, найдите авторов, у которых есть книги с рейтингом меньше 2 и страницами больше 100.
+Author.objects.filter(Q(books__reviews__rating__lt=2) & Q(books__pages__gt=100)).distinct()
+
+задание 10
+Используя F и агрегацию, найдите жанры, где количество книг с более чем 500 страницами превышает 3.
+в голову приходит только как с помощю Q решить
+Genre.objects.annotate(book_500=Count('books', filter=Q(books__pages__gt=500))).filter(Q(book_500__gt=3))
+
+задание 11
+Используя Case и When, добавьте в выборку книги, где новый столбец "Рейтинг_книги" будет равен 1, если рейтинг книги
+ выше 4, и 0 в противном случае
+тут тоже непонятно какой рейтинг суммарный\средний\максимальный? предположим что средний
+BookG.objects.annotate(avg_rating=Avg('reviews__rating'), Рейтинг_книги=Case(When(avg_rating__gt=4,then=Value(1)), default=Value(0), output_field=IntegerField()))
+
+задание 12
+Найдите книги, у которых количество страниц больше 400 и они были созданы в течение последнего года. Используйте
+ фильтрацию по датам и количеству страниц.
+one_year = timezone.now() - relativedelta(years=1)
+BookG.objects.filter(pages__gt=400, created_at__gt=one_year)
+
+задание 13
+Найдите авторов, чьи книги имеют хотя бы один отзыв с рейтингом выше 4, а также они создали книги в прошлом году.
+Используйте фильтрацию по датам и рейтингу отзывов.
+Author.objects.filter(books__reviews__rating__gt=4, books__created_at__year__lt=2024).distinct()
+
+задание 14
+Используя Case и When, добавьте новое поле "Возраст_автора", которое будет вычисляться как разница между текущей датой
+и годом рождения автора, и отобразите только тех, у кого возраст больше 30 лет.
+date_now = timezone.now()
+authors = Author.objects.annotate(
+    age=ExpressionWrapper(
+        (date_now.year - F('birthday__year')) -
+        ((date_now.month, date_now.day) < (F('birthday__month'), F('birthday__day'))),
+        output_field=fields.IntegerField()
+    )
+)
+
+задание 15
+Найдите книги, которые были опубликованы в течение определённого периода времени (например, с января по май) и имеют
+ менее 100 страниц. Используйте фильтрацию по датам и количеству страниц.
+BookG.objects.filter(pages__lt=100, created_at__year=2024, created_at__month__range=[1,5])
+
+
+Задача 1
+Добавь к книгам поле Popularity с помощью Case и When:
+
+Значение "High", если средний рейтинг выше 4 и количество отзывов больше 50.
+"Medium", если рейтинг от 3 до 4 и отзывов от 20 до 50.
+"Low" в остальных случаях.
+books = BookG.objects.annotate(avg_rate=Avg('reviews__rating'), count_revs=Count('reviews'), Popularity=Case(When(avg_rate__gt=4, count_revs__gt=
+    ...: 50, then=Value('High')), When(avg_rate__range=[3, 4], count_revs__range=[20, 50], then=Value('Medium')), default=Value('Low'), output_field=Cha
+    ...: rField()))
+
+Задача 2
+Найди авторов, у которых все книги имеют рейтинг выше среднего рейтинга всех их книг, но ниже среднего рейтинга всех
+книг всех авторов.
+glob_avg_rating = BookG.objects.aggregate(avg_all=Avg('reviews__rating'))['avg_all']
+
+
+КОРОЧЕ Я БОЛЬШЕ ЧАСА ДУМАЛ НО ТАК И НЕ СМОГ РЕШИТЬ, ПОСМОТИ КАК ЕЁ РЕШИЛ ТЫ, я просил без сабквери, ты сам не смог решить
+её в один запросс и притом консоль даже не хочет выводить резутьтат твоего решения...
+
+# Сначала вычислим средний рейтинг всех книг всех авторов
+global_avg_rating = Book.objects.aggregate(global_avg=Avg('reviews__rating'))['global_avg']
+
+# Теперь сделаем основной запрос, где каждый автор будет сравнивать рейтинги своих книг
+authors = Author.objects.annotate(
+    avg_rate=Avg('books__reviews__rating'),  # Средний рейтинг всех книг автора
+    all_books_above_avg=Count(
+        'books',
+        filter=Q(books__reviews__rating__gt=F('avg_rate'))  # Книги с рейтингом выше среднего этого автора
+    ),
+    all_books_below_global_avg=Count(
+        'books',
+        filter=Q(books__reviews__rating__lt=global_avg_rating)  # Книги с рейтингом ниже глобального среднего
+    ),
+    total_books=Count('books')  # Общее количество книг автора
+).filter(
+    all_books_above_avg=F('total_books'),  # У автора все книги должны иметь рейтинг выше его среднего
+    all_books_below_global_avg=F('total_books')  # У автора все книги должны иметь рейтинг ниже глобального среднего
+)
+
+Задача 3
+Найди книги, опубликованные в течение последних двух лет, где количество страниц больше максимального рейтинга отзывов,
+умноженного на 50. Используй аннотацию и F.
+two_years_ago = timezone.now() - relativedelta(years=2)
+BookG.objects.annotate(max_rate=Max('reviews__rating')).filter(Q(pages__gt=F('max_rate') * 50)) & Q(created_at__gt=two_year))
+
+Задача 4
+Выведи жанры, которые связаны с книгами, где хотя бы 30% отзывов имеют рейтинг ниже 2.
+from django.db.models.functions import Round
+genres = Genre.objects.annotate(count_books=Count('books'), reviews_abow_two=Count('books',
+                    filter=Q(books__reviews__rating__lt=2)),
+                    percent=ExpressionWrapper(F('reviews_abow_two') * 1.0 / F('count_books') * 100,
+                    output_field=FloatField())).annotate(round_precent=Round('percent', 2)).filter(round_precent__gt=30)
+
+Задача 5
+Аннотируй жанры полем TopBookRating, которое будет содержать максимальный рейтинг книги из жанра, и выведи жанры,
+где TopBookRating выше среднего рейтинга всех книг.
+эту задачу ты и сам в другой беседе смог решить только в 2 запросса
+avg_all_books_rating = BookG.objects.aggregate(avg_rating=Avg('reviews__rating'))['avg_rating']
+Genre.objects.annotate(TopBookRating=Max('books__reviews__rating')).filter(TopBookRating__gt=avg_all_books_rating)
+
+Задача 6
+Добавь к авторам поле BooksWeight, которое будет суммой страниц всех их книг. Выведи только тех авторов, у которых
+это значение превышает 10 000.
+Author.objects.annotate(BooksWeight=Sum('books__pages')).filter(BooksWeight__gt=10000)
+
+Задача 7
+Найди книги, где количество отзывов с рейтингом 5 больше, чем количество отзывов с рейтингом 1. Исп. аннотацию и фильтры.
+BookG.objects.annotate(reviews_five=Count('reviews', filter=Q(reviews__rating=5)), reviews_one=Count('reviews',
+                                        filter=Q(reviews__rating=1))).filter(reviews_five__gt=F('reviews_one'))
+
+Задача 8
+Добавь к книгам поле OldOrRecent, которое будет показывать:
+"Old", если книга создана больше 5 лет назад.
+"Recent", если книга создана меньше 5 лет назад.
+five_year = timezone.now() - relativedelta(years=5)
+BookG.objects.annotate(OldOrRecent=Case(When(created_at__lt=five_year, then=Value('Old')),
+                                  When(created_at__gt=five_year, then=Value('Recent')), output_field=CharField()))
+
+Задача 9
+Выведи авторов, у которых есть хотя бы одна книга, где количество отзывов меньше, чем количество страниц.
+BookG.objects.annotate(rev_count=Count('reviews')).filter(rev_count__lt=F('pages'))
+
+Задача 10
+Добавь к книгам поле ReviewRateDifference, которое будет содержать разницу между максимальным и минимальным рейтингом
+отзывов. Отфильтруй книги, у которых эта разница больше 2.
+BookG.objects.annotate(max_rate=Max('reviews__rating'), min_rate=Min('reviews__rating'),
+                                  ReviewRateDifference=ExpressionWrapper(F('max_rate') - F('min_rate'), output_field=IntegerField())).filter(ReviewRateDifference__gt=2)
+
+Задача 11
+Выведи жанры, у которых суммарное количество страниц книг больше среднего количества страниц всех книг.
+avg_pages_all = BookG.objects.aggregate(avg_pages=Avg('pages'))['avg_pages']
+Genre.objects.annotate(avg_pages_genre=Avg('books__pages')).filter(avg_pages_genre__gt=avg_pages_all)
+
+Задача 12
+Добавь к авторам поле AverageBookRating, которое будет средним рейтингом всех их книг. Найди авторов, у которых это
+значение ниже среднего рейтинга всех книг всех авторов.
+avg_all_rating = BookG.objects.aggregate(rate=Avg('reviews__rating'))['rate']
+Author.objects.annotate(AverageBookRating=Avg('books__reviews__rating')).filter(AverageBookRating__lt=avg_all_rating)
+
+Задача 13
+Найди книги, которые были созданы в течение последнего месяца и имеют больше отзывов с рейтингом 5, чем книг, созданных
+в тот же период, но с рейтингом 3.
+month = timezone.now() - relativedelta(months=1)
+BookG.objects.filter(created_at__gt=month).annotate(reviews_five_count=Count('reviews__rating',
+                            filter=Q(reviews__rating=5)), reviews_three_count=Count('reviews',
+                            filter=Q(reviews__rating=3))).filter(reviews_five_count__gt=F('reviews_three_count'))
+
+Задача 14
+Добавь к книгам поле GenreCount, которое будет показывать кол. жанров у книги, и найди книги, у которых больше 3 жанров.
+BookG.objects.annotate(GenreCount=Count('genres')).filter(GenreCount__gt=3)
+
+
+Задача 15
+Найди авторов, чьи книги имеют хотя бы один отзыв с рейтингом 5 и опубликованы в феврале любого года.
+Author.objects.filter(books__reviews__rating=5, books__created_at__month=2).distinct()
+
+Задача 16
+Добавь к книгам поле HasMixedReviews, которое будет True, если у книги есть отзывы с рейтингом 1 и 5 одновременно.
+BookG.objects.annotate(HasMixedReviews=Case(When(Q(reviews__rating=1) & Q(reviews__rating=5), then=Value(True)),
+                                                      default=Value(False), output_field=BooleanField())).distinct()
+
+Задача 17
+Выведи авторов, чьи книги в среднем имеют больше 10 отзывов. Используй аннотацию и фильтры.
+тут неочень понятно толи в сумме книги должны иметь больше 10 отзывов толи каждая, предположим что каждая
+Author.objects.annotate(count_books=Count('books'),
+                                count_revs=Count('books__reviews')).filter(count_revs__gt=F('count_books') * 10)
+
+Задача 18
+Найди книги, которые опубликованы в течение посл. года и имеют в среднем больше 300 страниц на каждую жанровую категорию.
+year = timezone.now() - relativedelta(years=1)
+books = BookG.objects.filter(created_at__gt=year).annotate(all_genres=Count('genres'),
+                                        pages_in_genres_all=Sum('genres__books__pages')) \
+
+
+Задача 19
+
+Добавь к жанрам поле LowRatedBooks, которое будет содержать количество книг с рейтингом ниже 3, и выведи жанры,
+где LowRatedBooks превышает 5.
+ты идумаешь в книгах есть поле рейтинг?
+
+Задача 20
+Найди книги, где разница между средней оценкой отзывов и их медианой больше 1. Используй аннотации и фильтры.
+я незнаю что такое медианная оценка и как её высчитать...

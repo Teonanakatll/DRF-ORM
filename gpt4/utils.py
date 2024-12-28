@@ -4,9 +4,12 @@ console = Console()
 def cons(obj, color='yellow', text='italic'):
     return console.print(obj, style=f'{text} {color}')
 
-def conb(first, second):
-    console.print(first, style='blue', end=' - ')
-    console.print(second, style='yellow')
+def conb(first, *args):
+    for i in len(args):
+        if i == 0:
+            console.print(args[i], style='blue', end=' - ')
+        else:
+            console.print(args[i], style='yellow')
 
 def text(text='\n', filename='gpt4/gpt4.text'):
     """ Функция для сохранения текста в фойл"""

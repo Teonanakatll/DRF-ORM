@@ -1,6 +1,8 @@
 import json
 
 from django.contrib.auth.models import User
+from django.db import connection
+from django.db.models import Count, Case, When, Avg, F
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.exceptions import ErrorDetail
@@ -9,12 +11,15 @@ from rest_framework.test import APITestCase
 from gpt4.utils import cons
 from store.models import Book, UserBookRelation
 from store.serializers import BooksSerializer
+from django.test.utils import CaptureQueriesContext
 
 from rich.console import Console
 console = Console()
 
 
 class BooksApiTestCase(APITestCase):
+    # сериализация это преобразование обьектов пайтон в json, а десериализация наоборот из json в обьект пайтон
+    # в тесте апи почти не тестируются поля, тестируются статус-коды и данные ответа (их структура и значения)
     def setUp(self):
         self.user = User.objects.create(username='test_username')
 
@@ -22,22 +27,46 @@ class BooksApiTestCase(APITestCase):
         self.book_2 = Book.objects.create(name='Test book 2', price=55, author_name='Author 3', owner=self.user)
         self.book_3 = Book.objects.create(name='Test book Author 1', price=55, author_name='Author 2')
 
+        self.relation = UserBookRelation.objects.create(user=self.user, book=self.book_1, like=True, rate=5)
+
     def test_get_list(self):
         # создаём url по имени пути
         url = reverse('book-list')
-        # client это тестовый клиент для имитации http запросов к приложению в тестах, get - get запрос
-        response = self.client.get(url)
+
+        # чтобы проверить сколько запросов происходит во время запроса, запустим response в контексте
+        # CaptureQueriesContext — инструмент Django для мониторинга SQL-запросов, а connection — это
+        # объект подключения к базе данных, будет логировать все SQL-зарпоссы во время его работы
+        with CaptureQueriesContext(connection) as queries:
+            # client это тестовый клиент для имитации http запросов к приложению в тестах, get - get запрос
+            response = self.client.get(url)
+            self.assertEqual(2, len(queries))
+
+        books = Book.objects.annotate(annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+                                      # rating=Avg('userbookrelation__rate'),
+                                      owner_name=F('owner__username')) \
+                                      .select_related('owner').prefetch_related('readers').order_by('id')
+
+
         # создаём сериализатор и передаём в него созданные обьекты
-        serializer_data = BooksSerializer([self.book_1, self.book_2, self.book_3], many=True).data
+        serializer_data = BooksSerializer(books, many=True).data
+
         # проверяем статус ответа
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         # сравниваем данные созданные сериализатором напрямую и полученные слиентом в ответе
         self.assertEqual(serializer_data, response.data)
+        self.assertEqual(serializer_data[0]['rating'], '5.00')
+        # self.assertEqual(serializer_data[0]['likes_count'], 1)
+        self.assertEqual(serializer_data[0]['annotated_likes'], 1)
 
     def test_get_detail(self):
         url = reverse('book-detail', args=(self.book_3.id,))
         response = self.client.get(url)
-        serializer_data = BooksSerializer(self.book_3).data
+
+        book = Book.objects.filter(id=self.book_3.id).annotate(
+                                                annotated_likes=Count(Case(When(userbookrelation__like=True), then=1)),
+                                                owner_name=F('owner__username'))[0]
+
+        serializer_data = BooksSerializer(book).data
 
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(serializer_data, response.data)
@@ -46,25 +75,43 @@ class BooksApiTestCase(APITestCase):
     def test_get_filter(self):
         url = reverse('book-list')
         response = self.client.get(url, data={'price': 55})
-        serializer_data = BooksSerializer([self.book_2, self.book_3], many=True).data
+
+        books = Book.objects.filter(id__in=[self.book_2.id, self.book_3.id]).annotate(
+                                                annotated_likes=Count(Case(When(userbookrelation__like=True), then=1)),
+                                                owner_name=F('owner__username')
+                                                ).order_by('id')
+
+        serializer_data = BooksSerializer(books, many=True).data
 
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(serializer_data, response.data)
 
     def test_get_search(self):
         url = reverse('book-list')
-
         response = self.client.get(url, data={'search': 'Author 1'})
-        serializer_data = BooksSerializer([self.book_1, self.book_3], many=True).data
+
+        books = Book.objects.filter(id__in=[self.book_1.id, self.book_3.id]).annotate(
+                                                annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+                                                owner_name=F('owner__username')
+                                                ).order_by('id')
+
+        serializer_data = BooksSerializer(books, many=True).data
 
         self.assertEqual(status.HTTP_200_OK, response.status_code)
+
         self.assertEqual(serializer_data, response.data)
+
+
 
     def test_get_ordering(self):
         url = reverse('book-list')
-
         response = self.client.get(url, data={'ordering': '-author_name'})
-        serializer_data = BooksSerializer([self.book_2, self.book_3, self.book_1], many=True).data
+
+        books = Book.objects.filter(id__in=[self.book_2.id, self.book_3.id, self.book_1.id]).annotate(
+                                                annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
+                                                owner_name=F('owner__username'))
+
+        serializer_data = BooksSerializer(books, many=True).data
 
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(serializer_data, response.data)

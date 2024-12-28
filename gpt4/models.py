@@ -4,7 +4,7 @@ from django.db.models import UniqueConstraint
 
 class Author(models.Model):
     name = models.CharField(max_length=100, verbose_name='Имя')
-    age = models.PositiveSmallIntegerField(verbose_name='Возраст', null=True, blank=True)
+    birthday = models.DateField(blank=True, null=True, verbose_name='Год рождения')
 
     def __str__(self):
         return f'Имя автора {self.name}'
@@ -29,6 +29,7 @@ class BookG(models.Model):
     author = models.ForeignKey(Author, related_name='books', on_delete=models.CASCADE, verbose_name='Автор')
     pages = models.PositiveSmallIntegerField(verbose_name='Количество страниц', null=True, blank=True)
     genres = models.ManyToManyField(Genre, through='BookGenre', related_name='books', verbose_name='Жанры')
+    created_at = models.DateTimeField(auto_now_add=True, blank=True, null=True, verbose_name='Дата добавления')
 
     def __str__(self):
         return f'{self.title}'
