@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from django.db.models import Sum, Count, Case, When, Value, Q, BooleanField, IntegerField, CharField, F, Avg, \
     FloatField, Max, Subquery, OuterRef
 from django.db.models.functions import Concat
@@ -8,7 +9,7 @@ from gpt4.models import BookG, Author, Review, BookGenre, Genre
 # bold, italic, underline, strikethrough, reverse, blink, reset, color, on_color, link, spoiler, code, escaped, bold underline, bold italic, on_, bright_, black, red, green, yellow, blue, magenta, cyan, white, bright_
 from rich.console import Console
 
-from gpt4.utils import conb, cons
+from gpt4.utils import cons
 from store.models import Book
 
 console = Console()
@@ -80,10 +81,12 @@ BookG.objects.last()                              # вернёт последн�
 
 BookG.objects.filter(id=3).exists()  # проверка существует ли запись, возвращает True/False
 
-from django.forms import model_to_dict            # преобразует модель данных джанго в словарь
+from django.forms.models import model_to_dict            # преобразует модель данных джанго в словарь
 
 model = BookG.objects.first()
-model_to_dict(model)      # преобразует модель в словарь, возвращает кверисет МТМ
+model_to_dict(model)      # преобразует модель в словарь
+
+from django.forms import model_to_dict      # дополнительно возвращает список связанных записей МТМ обр. FK
 
 BookG.refresh_from_db()     # обновляет атрибуты текущего экземпляра объекта модели данными из БД, если например запись
                             # была изменена на уровне запроса к БД или в другом экземпляре объекта
@@ -92,9 +95,8 @@ BookG.refresh_from_db()     # обновляет атрибуты текущег
 obj, created = BookGenre.objects.get_or_create(book=book, genre=genre)
 
 # Это метод менеджера моделей Django, который пытается получить объект из базы данных с указанными параметрами (lookup).
-# Это метод менеджера моделей Django, который пытается получить объект из базы данных с указанными параметрами (lookup).
 # Параметр defaults используется для указания значений полей, которые нужно задать только при создании нового объекта
-# Если объект уже существует, значения из defaults игнорируются
+# Если объект уже СУЩЕСТВУЕТ, ОН НЕ БУДЕТ ОБНОВЛЁН, даже если переданы defaults.
 obj, created = BookGenre.objects.get_or_create(defaults=None, **lookup)
 
 from django.shortcuts import get_object_or_404
@@ -102,10 +104,11 @@ from django.shortcuts import get_object_or_404
 BookG.objects.get_object_or_404(book=book, genre=genre)
 
 # Позволяет найти объект по заданным условиям или создать его, если объект не найден. Если объект существует, он
-# обновляется указанными значениями в defaults.
-obj, created = BookG.objects.update_or_create(book=book, genre=genre, defaults={"description": "Updated description"})
+# обновляется указанными значениями в defaults. ЕСЛИ ОБЬЕКТ НАЙДЕН ОН ОБЯЗАТЕЛЬНО ОБНОВЛЯЕТСЯ
+obj, created = BookGenre.objects.update_or_create(book=book, genre=genre, defaults={"description": "Updated description"})
 
-# Позволяют указать, какие поля загрузить из базы данных (или исключить). defer() и only()
+# Позволяют указать, какие поля загрузить из базы данных (или исключить). defer() и only(),а в случае обращения к
+# исключённым полям просто будет дополнительный запрос к бд?
 BookG.objects.only('title', 'pages')
 BookG.objects.defer('title', 'pages')
 
@@ -115,11 +118,13 @@ BookG.objects.defer('title', 'pages')
 # Что делает: aggregate() используется для получения единственного итогового значения (например, суммы, среднего
 # значения, минимального/максимального значения и т.д.) по всему набору данных. Это возвращает словарь с результатами
 # агрегации, но не модифицирует отдельные записи, возвращает один словарь.
-Book.objects.aggregate(average_rating=Avg('rating'))
+Book.objects.aggregate(average_rating=Avg('reviews__rating'))
 
 # Агрегация возвращает примитивный float, который нельзя использовать с OuterRef или в Subquery.
-# ТАК НЕ ПОЛУЧИТСЯ!!!!!!
+# ТАК НЕ ПОЛУЧИТСЯ!!!!!! и смысла в первой аннотации нет так как вернётся только результат аггрегации
 Author.objects.annotate(num_books=Count('books')).aggregate(average_rating=Avg('books__rating'))
+# тут всё корректно, можно аггрегировать аннотированные значения
+Author.objects.annotate(num_books=Count('books')).aggregate(average_rating=Avg('num_books'))
 
 Book.objects.annotate(
     annotated_likes=Count(Case(When(userbookrelation__like=True, then=1))),
@@ -153,7 +158,8 @@ Author.objects.filter(age__gte=33, books__pages__gt=130).distinct()    # выб�
 # __exact,   __iexact,   __contains,   __icontains,   __in (в списке),   __gt,   __gte,   __lt,   __lte,   __isnull
 # __range (в диапазоне),   __startswith,   __istartswith,   __endswith,   __iendswith,   __year,   __month,   __day
 
-BookG.objects.filter(field=None)                                # проверка заполнения поля кроме поля ManyToMany/ForKey
+# проверка заполнения поля кроме поля ManyToMany/ForKey только на None, на 0/""/False использ. разные проверки
+BookG.objects.filter(field=None)
 
 BookG.objects.filter(genres__isnull=True)                       # проверка заполнения поля ManyToMany/ForeignKey
 
@@ -295,6 +301,9 @@ for i, author in enumerate(Author.objects.all()):
 
 # Если нужна простая оценка по годам без учёта месяцев и дней, используй ExtractYear
 from django.db.models.functions import ExtractYear
+# понял тоесть если это поле модели могу смело использовать F('birthday__year') так понятнее а
+# когда уже столкнусь не с полями вспомню что существует способ экстракции откуда угодно?)
+# Для простого фильтра или обращения к году в QuerySet или модели, удобнее F('birthday__year').
 
 current_year = timezone.now().year
 authors = Author.objects.annotate(age=current_year - ExtractYear('birthday')).filter(age__gt=30)
@@ -316,6 +325,8 @@ authors = Author.objects.annotate(
 )
 
 # Выведи жанры, которые связаны с книгами, где хотя бы 30% отзывов имеют рейтинг ниже 2.
+# умножаем одно из чиселовых значений на 0.1 чтобы получить десятичную дробь чтобы гарантировать точный рез. деления
+# а иначе в бд результатам деления целых чисел будет целое число
 from django.db.models.functions import Round
 genres = Genre.objects.annotate(count_books=Count('books'), reviews_abow_two=Count('books', filter=Q(books__reviews__rating__lt=2)),
                                 percent=ExpressionWrapper(F('reviews_abow_two') * 1.0 / F('count_books') * 100,
@@ -369,13 +380,13 @@ genre.my_books.remove(book)  # Удаляет книгу из жанра
 # присваивается объекту. Если Subquery возвращает более одного значения (например, список), это вызовет ошибку.
 
 # 1. Аннотация: максимальный рейтинг книги для каждого жанра
-genres = Genre.objects.annotate(top_book_rating=Subquery(Book.objects.filter(genres=OuterRef('pk'))
-                                                 .values('genres').annotate(max_rating=Max('reviews__rating'))
-                                                 .values('max_rating')[:1]))
+Genre.objects.annotate(top_book_rating=Subquery(Book.objects.filter(genres=OuterRef('pk'))
+                                             .values('genres').annotate(max_rating=Max('reviews__rating'))
+                                             .values('max_rating')[:1]))
 
 # 2. Фильтрация: жанры с максимальным рейтингом книги выше 4
 Genre.objects.annotate(max_rating=Subquery(BookG.objects.filter(genres=OuterRef('pk'))
-                                           .values('genres').annotate(max_rating= Max('reviews__rating'))
+                                           .values('genres').annotate(max_rating=Max('reviews__rating'))
                                            .values('max_rating')[:1])).filter(max_rating__gt=4)
 
 
@@ -383,3 +394,58 @@ Genre.objects.annotate(max_rating=Subquery(BookG.objects.filter(genres=OuterRef(
 authors = Author.objects.annotate(avg_book_rating=Subquery(BookG.objects.filter(author=OuterRef('pk'))
                                                .values('author').annotate(avg_rating=Avg('reviews__rating'))
                                                .values('avg_rating')[:1]))
+# что по сути равно -
+Author.objects.annotate(avg_book_rating=Avg('books__reviews__rating'))
+
+Department, Employee, Order = 0, 0, 0
+# рассчитать среднюю зарплату для каждого отдела, но только по работникам, чей возраст превышает определённый порог.
+Department.objects.annotate(
+    avg_salary_above_30=Subquery(
+        Employee.objects.filter(department=OuterRef('pk'), age__gt=30)
+        .values('department')
+        .annotate(avg_salary=Avg('salary'))
+        .values('avg_salary')[:1]
+    )
+)    # тоесть тут через строчную анотацию мы можем добраться только ко всем Employee и можем только посчитать для всех
+     # а через subquery мы можем сузить выборку только для необходимых обьектов и аггрегировать только их значения?
+
+# извлечь все книги, у которых рейтинг выше, чем у книг того же автора, но по фильтрам, которые могут изменяться динами.
+Book.objects.annotate(
+    max_rating_by_author=Subquery(
+        Book.objects.filter(author=OuterRef('author'))
+        .values('author')
+        .annotate(max_rating=Max('reviews__rating'))
+        .values('max_rating')[:1]
+    )
+)  # тут если пробовать обращаться с помощю стр. аннотации получится рекурсия 'author__books__reviews__rating'?
+
+# получаем пользователей, у которых средний рейтинг книг выше некоторого порога, используя подзапрос для вычис среднего.
+User.objects.annotate(
+    avg_rating=Subquery(
+        Book.objects.filter(owner=OuterRef('pk'))
+        .annotate(avg_book_rating=Avg('reviews__rating'))
+        .values('avg_book_rating')[:1]
+    )
+).filter(avg_rating__gt=4.0)
+# а тут кажется можно и без подзапроса User.objects.annotate(avg_rating=Avg('books__reviews__rating').filter(avg_rating__gt=4.0)
+
+# выбери заказы, которые имеют максимальную стоимость среди всех заказов одного пользователя.
+Order.objects.annotate(
+    max_order_price=Subquery(
+        Order.objects.filter(user=OuterRef('user'))
+        .values('user')
+        .annotate(max_price=Max('total_price'))
+        .values('max_price')[:1]
+    )
+).filter(total_price=F('max_order_price'))
+# тут по видемому тоже получится рекурсия если обращаться черес стр анотацию Max('user__orders__total-price')?
+
+from django.db.models.functions import Coalesce
+
+# Заменяем NULL на 0 и выполняем вычисления
+books = Book.objects.annotate(
+    adjusted_rate=Coalesce('rate', Value(0))  # Заменяем NULL на 0
+).annotate(
+    result=F('adjusted_rate') * 2  # Выполняем вычисления безопасно
+)
+

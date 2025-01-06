@@ -1,5 +1,6 @@
+from django.contrib.auth import logout
 from django.db.models import Count, When, Case, Avg, F
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import mixins
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -62,3 +63,7 @@ class UserBookRelationView(mixins.UpdateModelMixin, GenericViewSet):
 
 def auth(request):
     return render(request, 'oauth.html')
+
+def logout_github_view(request):
+    logout(request)
+    return redirect('/my/book/')

@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from django.db import models
 
-from gpt4.utils import cons, conb
+from gpt4.utils import cons
 
 
 class Book(models.Model):
@@ -61,7 +61,7 @@ class UserBookRelation(models.Model):
     # конструктор вызывается только при создании обьекта, один раз
     def __init__(self, *args, **kwargs):
         super(UserBookRelation, self).__init__(*args, **kwargs)
-        self.old_rate = self.rate  # проверяем рейтинг до сохранения записи
+        self.old_rate = self.rate  # устанавливаем рейтинг до сохранения записи
 
     # функция которая вызывается при создании или обновлениии модели
     def save(self, *args, **kwargs):
@@ -75,10 +75,6 @@ class UserBookRelation(models.Model):
         super().save(*args, **kwargs)
 
         new_rate = self.rate  # проверяем рейтинг после сохранения записи
-        cons(creating)
-        conb('old_rating', self.old_rate)
-        conb('new_rating', new_rate)
-        cons('__________________________________________________')
         # вызываем нашу кастомную функцию установки рейтинга
         if self.old_rate != new_rate or creating:
             set_rating(self.book)

@@ -169,8 +169,11 @@ class BooksApiTestCase(APITestCase):
         self.book_1.refresh_from_db()
 
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
-        self.assertEqual({'detail': ErrorDetail(string='You do not have permission to perform this action.',
-                                                code='permission_denied')}, response.data)
+        # self.assertEqual({'detail': ErrorDetail(string='You do not have permission to perform this action.',
+        #                                         code='permission_denied')}, response.data)
+        # чтобы не зависить от текста ошибки ставим проверку на её код
+        # cons(response.data['detail'])
+        self.assertEqual('You do not have permission to perform this action.', response.data['detail'])
         self.assertEqual(25, self.book_1.price)
 
     def test_update_not_owner_but_staff(self):

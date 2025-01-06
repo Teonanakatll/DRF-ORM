@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 
+# from gpt4.utils import cons
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -46,6 +48,10 @@ INSTALLED_APPS = [
     # python manage.py show_urls | findstr /V "admin"  python manage.py reset_db
 
     'django_extensions',
+
+    # авторизация djoser и таблицами drf
+    'rest_framework.authtoken',
+    'djoser',
 
     'store.apps.StoreConfig',
     'gpt4.apps.Gpt4Config',
@@ -165,8 +171,25 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # from rich.traceback import install
 # install(show_locals=True)
 
+# SHELL_PLUS_PRE_IMPORTS = [
+#     'my_imports',
+# ]
+
 REST_FRAMEWORK = {
+    # 'DEFAULT_AUTHENTICATION_CLASSES': [
+    #     'rest_framework.authentication.SessionAuthentication',
+    # ],
+
+    # авторизация с djoser и стандартными таблицами токенов drf
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+
+    # фильтры django_filters
+    'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
     # дефолтный формат для вывода данных
+
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
@@ -174,6 +197,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
     ],
+
+
 }
 
 # разрешаем social_django использовать json поле postgress

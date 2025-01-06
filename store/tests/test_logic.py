@@ -24,6 +24,6 @@ class SetRatingTestCase(TestCase):
     def test_ok(self):
         set_rating(self.book_1)
         self.book_1.refresh_from_db()
-        cons(self.book_1.rating)
+        # cons(self.book_1.rating)
         # так как поле DecimalField() чтобы сравнить его значение приводим его к строке
         self.assertEqual('4.67', str(self.book_1.rating))

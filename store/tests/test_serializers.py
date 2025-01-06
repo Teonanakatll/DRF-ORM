@@ -95,4 +95,12 @@ class BooksSerializerTestCase(TestCase):
                 ]
             },
         ]
+        # cons(data)
+        # cons(expected_data)
         self.assertEqual(expected_data, data)
+
+    def tearDown(self) -> None:
+        User.objects.all().delete()
+        Book.objects.all().delete()
+        UserBookRelation.objects.all().delete()
+        super().tearDown()
