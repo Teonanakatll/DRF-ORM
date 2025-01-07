@@ -10,7 +10,7 @@ from rest_framework.viewsets import ModelViewSet, GenericViewSet
 
 from gpt4.models import BookG, UserBookGRelation, Review
 from gpt4.my_custom_filters import BookGFilterSet, BookGFilterBackends
-from gpt4.permissions import CreateOnlyAuthenticated
+from gpt4.permissions import CreateOnlyAuthenticated, IsOwnerOrStaff
 from gpt4.serializers import BookGSerializer, UserBookGRelationSerializer, UserSerializer
 from gpt4.utils import cons
 from store.permissions import IsOwnerOrStaffOrReadOnly
@@ -102,7 +102,7 @@ class UserView(mixins.ListModelMixin, mixins.RetrieveModelMixin, GenericViewSet)
     permission_classes = [IsAdminUser]
 
     @action(detail=True, methods=['get'], serializer_class=BookGSerializer, url_path='books',
-                                                                            permission_classes=[AllowAny])
+                                                                            permission_classes=[IsOwnerOrStaff])
     def list_books(self, request, pk=None):
         books = BookG.objects.filter(owner_id=pk)
         return Response(BookGSerializer(books, many=True).data, status=200)

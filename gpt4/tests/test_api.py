@@ -7,7 +7,7 @@ from django.urls import reverse
 from rest_framework import status
 
 from gpt4.models import Author, BookG, Genre, UserBookGRelation, Review
-from gpt4.serializers import BookGSerializer
+from gpt4.serializers import BookGSerializer, UserSerializer
 from gpt4.utils import cons
 
 
@@ -138,7 +138,7 @@ class BookGApiTestCase(TestCase):
         self.assertEqual('not_authenticated', response.data['detail'].code)
         self.assertEqual(4, BookG.objects.count())
 
-
+    # проверка попытки создания пустой записи
     def test_create_without_data(self):
         url = reverse('my-list')
         self.client.force_login(self.user_1)
@@ -181,6 +181,7 @@ class BookGApiTestCase(TestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual("Soroconozhka", self.book_1.title)
 
+    # проверка возможности редактировать чужую запись
     def test_update_not_own(self):
         url = reverse('my-detail', args=(self.book_1.id,))
         self.client.force_login(self.user_2)
@@ -270,6 +271,7 @@ class BookGApiTestCase(TestCase):
         self.assertEqual(serializer_data, response.data)
 
                                              #  ACTIONS
+    # создание рецензии через экщен
     def test_post_review(self):
         self.assertEqual(1, Review.objects.count())
         url = reverse('my-review', args=(self.book_2.id,))
@@ -297,7 +299,7 @@ class BookGApiTestCase(TestCase):
 
 
 # проверить невозможность нарушения unique_constraint
-class UserBookGRelationViewTestCase(TestCase):
+class UserBookGRelationApiTestCase(TestCase):
     def setUp(self):
         self.user_1 = User.objects.create(username='Tolik')
         self.user_2 = User.objects.create(username='Bolik')
@@ -317,11 +319,12 @@ class UserBookGRelationViewTestCase(TestCase):
         }
         json_data = json.dumps(data)
         response = self.client.patch(url, data=json_data, content_type='application/json')
-        # cons(response.data)
+
         self.realation.refresh_from_db()
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertTrue(self.realation.like)
 
+    # проверка возможности поставить лайк неавторизованному пользователю
     def test_without_login(self):
         url = reverse('my_rel-detail', args=(self.book_1.id,))
         data = {
@@ -330,7 +333,6 @@ class UserBookGRelationViewTestCase(TestCase):
         json_data = json.dumps(data)
         response = self.client.patch(url, data=json_data, content_type='application/json')
         self.assertEqual(status.HTTP_401_UNAUTHORIZED, response.status_code)
-        cons(response.data)
         self.assertEqual('not_authenticated', response.data['detail'].code)
 
     # проверка что нельзя изменить несвой лайк
@@ -347,6 +349,7 @@ class UserBookGRelationViewTestCase(TestCase):
         self.realation.refresh_from_db()
         self.assertEqual(5, self.realation.hate_rate)
 
+    # создание записи с некорректным значением рейтинга
     def test_hate_rate_wrong(self):
         url = reverse('my_rel-detail', args=(self.book_1.id,))
         self.client.force_login(self.user_1)
@@ -366,4 +369,79 @@ class UserBookGRelationViewTestCase(TestCase):
         UserBookGRelation.objects.all().delete()
         super().tearDown()
 
-# unique_constrant
+
+class UserApiTestCase(TestCase):
+    def setUp(self) -> None:
+        self.user_1 = User.objects.create(username='User_1', first_name='Kri')
+        self.user_2 = User.objects.create(username='User_2', first_name='Fox')
+        self.admin = User.objects.create(username='Boss', first_name='Teon', last_name='Ko', is_staff=True)
+
+        self.book_1 = BookG.objects.create(title='Book_1', pages=444, owner=self.user_1, content='Book_1 content')
+        self.book_2 = BookG.objects.create(title='Book_2', pages=555, owner=self.user_1, content='Book_2 content')
+
+    # получение данных юзера с правами администратора
+    def test_detail(self):
+        url = reverse('users-detail', args=(self.user_1.id,))
+        self.client.force_login(self.admin)
+        response = self.client.get(url)
+        serializer_data = UserSerializer(self.user_1).data
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(serializer_data, response.data)
+
+    # получение несуществующего пользователя
+    def test_detail_wrong_user(self):
+        url = reverse('users-detail', args=(100,))
+        self.client.force_login(self.admin)
+        response = self.client.get(url)
+        self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
+
+    # получение данных юиера без прав администратора
+    def test_get_detail_not_staff(self):
+        url = reverse('users-detail', args=(self.user_1.id,))
+        self.client.force_login(self.user_1)
+        response = self.client.get(url)
+
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+        self.assertEqual('permission_denied', response.data['detail'].code)
+
+    # получение списка юзеров с правами администратора
+    def test_get_list(self):
+        url = reverse('users-list')
+        self.client.force_login(self.admin)
+        response = self.client.get(url)
+        serializer_data = UserSerializer(User.objects.all(), many=True).data
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(serializer_data, response.data)
+
+    # получение списка юзеров без прав админа
+    def test_get_list_not_staff(self):
+        url = reverse('users-list')
+        self.client.force_login(self.user_1)
+        response = self.client.get(url)
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
+    # получение списка связанных книг хозяином
+    def test_get_action_owner(self):
+        url = reverse('users-list-books', args=(self.user_1.id,))
+        self.client.force_login(self.user_1)
+        response = self.client.get(url)
+        serializer_data = BookGSerializer(BookG.objects.filter(owner_id=self.user_1.id), many=True).data
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(serializer_data, response.data)
+
+    # получение списка ужих связанных книг
+    def test_get_action_not_own(self):
+        url = reverse('users-list-books', args=(self.user_1.id,))
+        self.client.force_login(self.user_2)
+        response = self.client.get(url)
+
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
+    # получение списка связанных книг админом
+    def test_get_action_staff(self):
+        url = reverse('users-list-books', args=(self.user_1.id,))
+        self.client.force_login(self.admin)
+        response = self.client.get(url)
+        serializer_data = BookGSerializer(BookG.objects.filter(owner_id=self.user_1.id), many=True).data
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(serializer_data, response.data)

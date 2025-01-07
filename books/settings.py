@@ -55,6 +55,7 @@ INSTALLED_APPS = [
 
     'store.apps.StoreConfig',
     'gpt4.apps.Gpt4Config',
+    'web_scraper.apps.WebScraperConfig'
 ]
 
 INTERNAL_IPS = [

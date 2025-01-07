@@ -79,9 +79,9 @@ class BookGSerializer(ModelSerializer):
 class UserBookGRelationSerializer(ModelSerializer):
     class Meta:
         model = UserBookGRelation
-        fields = ('book', 'like', 'in_bookmarks', 'hate_rate')
+        fields = ('id', 'book', 'user', 'like', 'in_bookmarks', 'hate_rate')
 
 class UserSerializer(ModelSerializer):
     class Meta:
         model = User
-        fields = '__all__'
+        fields = ('id', 'username', 'first_name', 'last_name', 'is_staff')

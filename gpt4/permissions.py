@@ -2,6 +2,9 @@ from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 
 # SAFE_METHODS: GET, HEAD или OPTIONS
+from gpt4.utils import cons
+
+
 class IsOwnerOrStuffOrReadOnly(BasePermission):
     def has_object_permission(self, request, view, obj):
         return bool(
@@ -16,3 +19,16 @@ class CreateOnlyAuthenticated(BasePermission):
         if request.method == 'POST':
             return request.user and request.user.is_authenticated
         return True
+
+class IsOwnerOrStaff(BasePermission):
+    def has_permission(self, request, view):
+        if request.user.is_staff:
+            return True
+
+        # проверяем, пытается ли пользователь получить книги своего аккаунта
+        owner_id = view.kwargs.get('pk')
+        if owner_id is None or not owner_id.isdigit():
+            cons(owner_id)
+            return False
+
+        return int(owner_id) == request.user.id
