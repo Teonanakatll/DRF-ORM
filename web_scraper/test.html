@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html class="h-full">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<meta name="description" content="Not only crawl products but also handle pagination"><title>Recursively Scraping pages | ScrapingClub</title>
+
+    <link rel="icon" href="/static/img/icon.611132651e39.png" type="image/png" />
+
+    <script>
+      window.django_app_cfg = {
+        dsn: "https://547e0f728838410daf2f1e1a20153fcc@o207778.ingest.sentry.io/4505046779232256",
+        release: "2c93d99",
+        userPk: "",
+      };
+    </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <link type="text/css" href="/static/css/app.4a8ac9e71a688f8d087e.76f3a3e8d3f5.css" rel="stylesheet" />
+
+
+
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-BD9ZHFE1XX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+
+      gtag('js', new Date());
+
+      gtag('config', 'G-BD9ZHFE1XX');
+    </script>
+  </head>
+
+
+    <body class="h-full font-sans antialiased font-normal leading-normal text-gray-700">
+
+
+<div id="banner"
+     class="flex z-50 justify-center py-3 px-4 w-full bg-gray-50 border border-b border-gray-200 lg:py-4 dark:bg-gray-700 dark:border-gray-600">
+  <div class="items-center md:flex">
+    <p class="text-sm font-medium text-gray-900 md:my-0 dark:text-white">
+      <span class="hidden py-0.5 px-2.5 mr-2 text-xs font-semibold text-blue-800 bg-blue-100 rounded md:inline dark:text-blue-800
+dark:bg-blue-200">New</span>
+      We have launched Django SaaS Template, which aims to save your time and money building your product.
+      <a href="https://saashammer.com/" target="_blank"
+         class="inline-flex items-center ml-2 text-sm font-medium text-blue-600 md:ml-2 dark:text-blue-500 hover:underline">
+        Check it out
+        <svg class="ml-1 w-4 h-4 text-blue-600 dark:text-blue-500" fill="currentColor" viewBox="0 0 20 20"
+             xmlns="http://www.w3.org/2000/svg">
+          <path fillrule="evenodd"
+                d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0
+010-1.414z"
+                cliprule="evenodd"></path>
+        </svg>
+      </a>
+    </p>
+  </div>
+</div>
+
+
+<div class="w-full" id="messages">
+
+
+
+
+</div>
+
+
+<nav class="py-2 px-4 text-sm font-medium bg-white border-b border-gray-200"
+     data-controller="toggle"
+>
+
+  <div class="container flex flex-wrap justify-between items-center mx-auto max-w-7xl">
+
+    <div class="flex flex-shrink-0 items-center mr-6">
+      <a href="/">
+        <img src="/static/images/brand-logo.946570ac99fb.png" alt="ScrapingClub" style="height: 40px">
+      </a>
+    </div>
+
+    <div class="block lg:hidden">
+      <button type="button" id="sidebar-open"
+              class="flex items-center p-3 text-gray-500 lg:hidden focus:text-gray-700 focus:outline-none"
+              data-action="click->toggle#toggle touch->toggle#toggle">
+        <svg class="w-5 h-5 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Menu</title>
+          <path d="M0 3h20v2H0V3zm0 6h20v2H0V9zm0 6h20v2H0v-2z"></path>
+        </svg>
+      </button>
+    </div>
+
+    <div class="hidden flex-grow pb-3 w-full lg:flex lg:pb-0 lg:w-auto" data-toggle-target="toggleable"
+data-action="native-toggle-nav-bar@window->toggle#toggle">
+      <div class="lg:flex-grow">
+        <a class="nav-link" href="/">Home</a>
+        <a class="nav-link" href="/#web-scraping-tutorial-using-scrapy">Scrapy Tutorial Series</a>
+        <a class="nav-link" href="/about/">About</a>
+        <a class="nav-link" href="https://leanpub.com/ultimateguidetoscrapy/">eBook</a>
+      </div>
+    </div>
+
+  </div>
+
+</nav>
+
+
+      <div>
+        <div class="container mx-auto max-w-7xl">
+          <div class="flex flex-row flex-wrap">
+            <div class="px-4 mb-6 w-full sm:w-2/3 md:w-3/4 lg:w-8/12">
+
+              <div class="my-4">
+                <div class="alert alert-success" role="alert">
+                  <div class="max-w-full prose">
+                    <p>This project was built to help people and I did not earn money from my work.
+                      But you can still support my work
+                    </p>
+                    <ul>
+                      <li><a href="//buymeacoff.ee/0JqEZkHre" target="_blank">Buy me a coffee!</a></li>
+                      <li><a href="https://leanpub.com/ultimateguidetoscrapy/" target="_blank">Ultimate Guide To Scrapy (eBook)</a></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+
+
+<div class="my-4 alert alert-info" role="alert">
+  <div class="max-w-full prose">
+  <p>Try to extract all product detail infomation such as title, description, you should also handle pagination here so in the end you can get
+about 100+ records.</p>
+<p>Tips:</p>
+<ol>
+<li>You can read this article if you need help. <a href="https://www.accordbox.com/blog/scrapy-tutorial-10-how-build-real-spider/">Scrapy
+Tutorial: How To Build A Real Spider</a></li>
+</ol>
+</div>
+
+</div>
+
+
+
+
+
+
+  <div class="my-4">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+
+        <div class="w-full rounded border">
+          <a href="/exercise/list_basic_detail/90008-E/">
+            <img class="card-img-top img-fluid" src="/static/img/90008-E.jpg" alt="">
+          </a>
+          <div class="p-4">
+            <h4>
+              <a href="/exercise/list_basic_detail/90008-E/">Short Dress</a>
+            </h4>
+            <h5>$24.99</h5>
+          </div>
+
+        </div>
+
+        <div class="w-full rounded border">
+          <a href="/exercise/list_basic_detail/96436-A/">
+            <img class="card-img-top img-fluid" src="/static/img/96436-A.jpg" alt="">
+          </a>
+          <div class="p-4">
+            <h4>
+              <a href="/exercise/list_basic_detail/96436-A/">Patterned Slacks</a>
+            </h4>
+            <h5>$29.99</h5>
+          </div>
+
+        </div>
+
+        <div class="w-full rounded border">
+          <a href="/exercise/list_basic_detail/93926-B/">
+            <img class="card-img-top img-fluid" src="/static/img/93926-B.jpg" alt="">
+          </a>
+          <div class="p-4">
+            <h4>
+              <a href="/exercise/list_basic_detail/93926-B/">Short Chiffon Dress</a>
+            </h4>
+            <h5>$49.99</h5>
+          </div>
+
+        </div>
+
+        <div class="w-full rounded border">
+          <a href="/exercise/list_basic_detail/90882-B/">
+            <img class="card-img-top img-fluid" src="/static/img/90882-B.jpg" alt="">
+          </a>
+          <div class="p-4">
+            <h4>
+              <a href="/exercise/list_basic_detail/90882-B/">Off-the-shoulder Dress</a>
+            </h4>
+            <h5>$59.99</h5>
+          </div>
+
+        </div>
+
+        <div class="w-full rounded border">
+          <a href="/exercise/list_basic_detail/93756-C/">
+            <img class="card-img-top img-fluid" src="/static/img/93756-C.jpg" alt="">
+          </a>
+          <div class="p-4">
+            <h4>
+              <a href="/exercise/list_basic_detail/93756-C/">V-neck Top</a>
+            </h4>
+            <h5>$24.99</h5>
+          </div>
+
+        </div>
+
+        <div class="w-full rounded border">
+          <a href="/exercise/list_basic_detail/93926-C/">
+            <img class="card-img-top img-fluid" src="/static/img/93926-C.jpg" alt="">
+          </a>
+          <div class="p-4">
+            <h4>
+              <a href="/exercise/list_basic_detail/93926-C/">Short Chiffon Dress</a>
+            </h4>
+            <h5>$49.99</h5>
+          </div>
+
+        </div>
+
+        <div class="w-full rounded border">
+          <a href="/exercise/list_basic_detail/93756-B/">
+            <img class="card-img-top img-fluid" src="/static/img/93756-B.jpg" alt="">
+          </a>
+          <div class="p-4">
+            <h4>
+              <a href="/exercise/list_basic_detail/93756-B/">V-neck Top</a>
+            </h4>
+            <h5>$24.99</h5>
+          </div>
+
+        </div>
+
+        <div class="w-full rounded border">
+          <a href="/exercise/list_basic_detail/93756-D/">
+            <img class="card-img-top img-fluid" src="/static/img/93756-D.jpg" alt="">
+          </a>
+          <div class="p-4">
+            <h4>
+              <a href="/exercise/list_basic_detail/93756-D/">V-neck Top</a>
+            </h4>
+            <h5>$24.99</h5>
+          </div>
+
+        </div>
+
+        <div class="w-full rounded border">
+          <a href="/exercise/list_basic_detail/96643-A/">
+            <img class="card-img-top img-fluid" src="/static/img/96643-A.jpg" alt="">
+          </a>
+          <div class="p-4">
+            <h4>
+              <a href="/exercise/list_basic_detail/96643-A/">Short Lace Dress</a>
+            </h4>
+            <h5>$59.99</h5>
+          </div>
+
+        </div>
+
+        <div class="w-full rounded border">
+          <a href="/exercise/list_basic_detail/94766-A/">
+            <img class="card-img-top img-fluid" src="/static/img/94766-A.jpg" alt="">
+          </a>
+          <div class="p-4">
+            <h4>
+              <a href="/exercise/list_basic_detail/94766-A/">Fitted Dress</a>
+            </h4>
+            <h5>$34.99</h5>
+          </div>
+
+        </div>
+
+
+    </div>
+  </div>
+
+
+
+    <nav class="pagination" aria-label="pagination">
+
+
+      <span class="page active">
+  <strong>1</strong>
+</span>
+
+
+
+
+      <span class="page" >
+  <a href="/exercise/list_basic/?page=2"
+
+  >2</a>
+</span>
+
+
+
+
+      <span class="page" >
+  <a href="/exercise/list_basic/?page=3"
+
+  >3</a>
+</span>
+
+
+
+
+      <span class="page" >
+  <a href="/exercise/list_basic/?page=4"
+
+  >4</a>
+</span>
+
+
+
+
+      <span class="page" >
+  <a href="/exercise/list_basic/?page=5"
+
+  >5</a>
+</span>
+
+
+
+
+      <span class="page" >
+  <a href="/exercise/list_basic/?page=6"
+
+  >6</a>
+</span>
+
+
+
+
+      <span class="page next">
+  <a href="/exercise/list_basic/?page=2"
+     rel="next"
+  >Next&nbsp;›
+  </a>
+</span>
+
+
+
+</nav>
+
+
+
+
+<div class="p-16 my-16 bg-gray-50 rounded border border-gray-200">
+
+  <div class="flex justify-center">
+    <div class="w-full text-center lg:w-10/12">
+
+      <div class="mb-4 h1">
+        Launch Products Faster
+        <span class="block text-blue-600">with Django</span>
+      </div>
+
+      <p class="mb-10">
+        SaaS Hammer helps you launch products in faster way. It contains all the foundations you need so you can focus on your product.
+      </p>
+
+      <div class="">
+        <a href="https://saashammer.com/" class="btn btn-large btn-primary">
+          Learn More
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+
+            </div>
+
+            <div class="px-4 mb-6 w-full sm:w-1/3 md:w-1/4 lg:w-4/12">
+
+                <div class="p-4 my-4 rounded border">
+  <div>
+    <h3>Exercise List</h3>
+  </div>
+
+  <div class="flex-col space-y-4 max-w-full prose">
+
+
+      <div class="border-b ">
+        <p>
+          <a class="" href="/exercise/detail_basic/">Basic Info Scraping</a>
+        </p>
+        <p>Web scraping using XPath or CSS expression</p>
+      </div>
+
+      <div class="border-b ">
+        <p>
+          <a class="" href="/exercise/detail_json/">Analyze JSON</a>
+        </p>
+        <p>Load JSON string and extract data</p>
+      </div>
+
+      <div class="border-b ">
+        <p>
+          <a class="" href="/exercise/list_basic/">Recursively Scraping pages</a>
+        </p>
+        <p>Not only crawl products but also handle pagination</p>
+      </div>
+
+      <div class="border-b ">
+        <p>
+          <a class="" href="/exercise/detail_ajax/">Mimicking Ajax requests</a>
+        </p>
+        <p>Inspect Ajax requests and mimic them</p>
+      </div>
+
+      <div class="border-b ">
+        <p>
+          <a class="" href="/exercise/detail_header/">Inspect HTTP request</a>
+        </p>
+        <p>Learn to inspect the fields of HTTP request</p>
+      </div>
+
+      <div class="border-b ">
+        <p>
+          <a class="" href="/exercise/list_infinite_scroll/">Scraping Infinite Scrolling Pages (Ajax)</a>
+        </p>
+        <p>Learn to scrape infinite scrolling pages</p>
+      </div>
+
+      <div class="border-b ">
+        <p>
+          <a class="" href="/exercise/detail_cookie/">Find gold in cookie</a>
+        </p>
+        <p>Make your spider can work with the cookie</p>
+      </div>
+
+      <div class="border-b ">
+        <p>
+          <a class="" href="/exercise/basic_login/">Login form</a>
+        </p>
+        <p>Scrape data behind login form</p>
+      </div>
+
+      <div class="border-b ">
+        <p>
+          <a class="" href="/exercise/basic_captcha/">Solve Captcha</a>
+        </p>
+        <p>Learn to scrape data behind a captcha</p>
+      </div>
+
+      <div class="border-b  last:border-b-0">
+        <p>
+          <a class="" href="/exercise/detail_sign/">Decode minified javascript</a>
+        </p>
+        <p>Learn how to analyze minimized or compressed javascript</p>
+      </div>
+
+
+  </div>
+</div>
+
+
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+
+
+<aside class="py-16 bg-gray-50 border-t border-gray-200 lg:py-20" id="footer">
+  <div class="px-4 mx-auto max-w-8xl"><h2
+    class="mb-4 text-4xl font-bold tracking-tight text-gray-900 md:font-extrabold md:text-center lg:mb-7 lg:leading-none dark:text-white">
+    Sign up for our newsletter</h2>
+    <p class="mb-6 text-base text-gray-500 md:mb-10 md:text-xl md:text-center lg:px-20 xl:px-56 dark:text-gray-400">
+      Subscribe to receive new <span class="font-bold">web scraping exercises</span> and <span class="font-bold">tutorials</span>
+    </p>
+    <div class="mb-4">
+      <form action="/newsletter_subscribe/" method="get" class="flex max-w-xl md:mx-auto" data-controller="subscribe"
+data-action="submit->subscribe#submit">
+        <div class="w-full"><label for="member_email" class="hidden">Email address</label>
+          <div class="relative h-full">
+            <div class="flex absolute inset-y-0 left-0 items-center pl-3 pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"
+                   class="w-5 h-5 text-gray-500 dark:text-gray-400">
+                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
+                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
+              </svg>
+            </div>
+            <input type="email" name="email"
+                   class="block py-4 px-3 pl-10 w-full text-base text-gray-900 bg-white rounded-l-xl border border-gray-200
+dark:placeholder-gray-400 dark:text-white dark:bg-gray-700 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500
+dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                   placeholder="Enter your email" required >
+          </div>
+        </div>
+
+        <div>
+          <input type="submit" id="subscribe-submit"
+                 class="py-4 px-4 w-full text-base font-semibold text-center text-white bg-blue-600 rounded-r-xl border border-blue-600
+cursor-pointer hover:bg-blue-700 focus:border-blue-600 focus:ring-2 focus:ring-blue-600 focus:outline-none formkit-submit"
+                 value="Subscribe">
+        </div>
+
+      </form>
+    </div>
+    <p class="hidden text-base text-green-600 md:text-center" id="subscribe-msg">
+      Thanks, please confirm subscription email
+    </p>
+  </div>
+</aside>
+
+<div class="w-full h-auto text-sm bg-gray-50 border-t border-gray-200 lg:px-6">
+  <div class="flex flex-col p-4 px-2">
+    <div class="mx-auto text-gray-700">Crafted with ❤️ by <a href="https://github.com/michael-yin/">MichaelYin</a> </div>
+  </div>
+
+    </body>
+
+</html>
