@@ -9,14 +9,13 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
-
+import sys
 from pathlib import Path
 
 # from gpt4.utils import cons
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -55,7 +54,8 @@ INSTALLED_APPS = [
 
     'store.apps.StoreConfig',
     'gpt4.apps.Gpt4Config',
-    'web_scraper.apps.WebScraperConfig'
+    'web_scraper.apps.WebScraperConfig',
+    'bot.apps.BotConfig',
 ]
 
 INTERNAL_IPS = [
