@@ -1,5 +1,8 @@
 from aiogram.filters import Filter
-from aiogram import types
+from aiogram import Bot, types
+
+from gpt4.utils import cons
+
 
 class ChatTypeFilter(Filter):
     # фильтр принимает список чатов
@@ -10,3 +13,11 @@ class ChatTypeFilter(Filter):
     # тип чата указанного в фильтре роутера соврпадают возвращаем значение True
     async def __call__(self, message: types.Message) -> bool:
         return message.chat.type in self.chat_types
+
+class IsAdmin(Filter):
+    def __init__(self) -> None:
+        pass
+
+    async def __call__(self, message: types.Message, bot: Bot) -> bool:
+        # cons(f'my_admins_list from IsAdmin {bot.my_admins_list}')
+        return message.from_user.id in bot.my_admins_list

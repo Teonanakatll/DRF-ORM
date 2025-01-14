@@ -11,28 +11,39 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
+from aiogram.fsm.strategy import FSMStrategy
 from aiogram.types import BotCommandScopeAllPrivateChats
 
+from bot.handlers.admin_private import admin_router
 from bot.handlers.user_private import user_private_router
 from bot.handlers.user_group import user_group_router
 from bot.common.bot_cmds_list import private
 from gpt4.utils import cons
 
 from dotenv import find_dotenv, load_dotenv
+from aiogram.fsm.storage.memory import MemoryStorage
+
 load_dotenv(find_dotenv())
+# storage = MemoryStorage()
 
 bot = Bot(token=os.getenv('TOKEN'), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+# переменная для хранения админов
+bot.my_admins_list = []
+
+# cons('from my_bot.py my_admins_list', bot.my_admins_list)
 
 # список разрешённых обновлений которые необходимо получать и обрабатывать в боте
 ALLOWED_UPDATES = ['message, edited_message']
 
 # Dispatcher это менеджер, который управляет обработкой входящих обновлений (сообщений, команд, callback-данных).
 # Он помогает "назначать" функции для обработки конкретных типов сообщений или команд.
+# По умолчанию использует MemoryStorage - тоесть хранит данные в оперативной памяти
 dp = Dispatcher()
 
 # include_router/s - можно пердавать в диспетчер роутеры по одному или списком
 dp.include_router(user_private_router)
 dp.include_router(user_group_router)
+dp.include_router(admin_router)
 
 
 # прослушивание сообщений для нашего бота, этот процесс повторяется бесконечно, пока бот работает.
