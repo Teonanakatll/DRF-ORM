@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from django.db.models import Sum, Count, Case, When, Value, Q, BooleanField, IntegerField, CharField, F, Avg, \
-    FloatField, Max, Subquery, OuterRef
+    FloatField, Max, Subquery, OuterRef, Exists
 from django.db.models.functions import Concat
 
 from gpt4.models import BookG, Author, Review, BookGenre, Genre
@@ -71,7 +71,7 @@ BookG.objects.all().values()                      # кверисет со спи
 
 BookG.objects.all().values_list()                 # результат кверисет со списком кортежей с значениями полей модели
 
-BookG.objects.values('name', 'price')     # выбор полей из модели
+BookG.objects.values('name', 'price')             # выбор полей из модели
 
 BookG.objects.all().values_list('id', flat=True)  # применяется только для одного поля, вернёт плоский список значений полей
 
@@ -89,6 +89,8 @@ book_dict = model_to_dict(model)      # преобразует модель в �
 # если нужно вывести список id связанных записей
 book_dict['genres'] = [genre.id for genre in book.genres.all()]
 book_dict['readers'] = [reader.id for reader in book.readers.all()]
+lst = [[book.title, book.pages] for book in books]
+dct = [f'{book.title}: {book.pages}' for book in books]
 
 book.refresh_from_db()     # обновляет атрибуты текущего экземпляра объекта модели данными из БД, если например запись
                             # была изменена на уровне запроса к БД или в другом экземпляре объекта
@@ -121,6 +123,7 @@ BookG.objects.defer('title', 'pages')
 # значения, минимального/максимального значения и т.д.) по всему набору данных. Это возвращает словарь с результатами
 # агрегации, но не модифицирует отдельные записи, возвращает один словарь.
 Book.objects.aggregate(average_rating=Avg('reviews__rating'))
+avg = Book.objects.aggregate(avg_rate=Avg('reviews__rating'))['avg_rate']  # так вернёт только значение
 
 # Агрегация возвращает примитивный float, который нельзя использовать с OuterRef или в Subquery.
 # ТАК НЕ ПОЛУЧИТСЯ!!!!!! и смысла в первой аннотации нет так как вернётся только результат аггрегации
@@ -141,6 +144,7 @@ Book.objects.annotate(
 Order = ''
 n = Order.objects.values('product').annotate(total_price=Sum(F('quantity') * F('product__price')))
 
+# так как values() - возвращает кверисет словарей соответственно результат будет таким
 n = [
     {'product': 2, 'total_price': 800},
     {'product': 3, 'total_price': 300}
@@ -160,8 +164,7 @@ Author.objects.filter(age__gte=33, books__pages__gt=130).distinct()    # выб�
 
                                             # ФИЛЬТРАЦИЯ И ОБНОВЛЕНИЕ ДАННЫХ
 
-# __exact,   __iexact,   __contains,   __icontains,   __in (в списке),   __gt,   __gte,   __lt,   __lte,   __isnull
-# __range (в диапазоне),   __startswith,   __istartswith,   __endswith,   __iendswith,   __year,   __month,   __day
+
 
 # проверка заполнения поля кроме поля ManyToMany/ForKey только на None, на 0/""/False использ. разные проверки
 BookG.objects.filter(field=None)
@@ -207,7 +210,8 @@ BookG.objects.update(
     status=Case(
         When(author="Сява", then=Value("published")),
         When(author="Иван", then=Value("draft")),
-        default=Value("archived")                         # значение по умолчанию
+        default=Value("archived"),                         # значение по умолчанию
+        output_field=CharField()
     )
 )
 
@@ -264,7 +268,7 @@ Author.objects.annotate(
 
 
 Author.objects.annotate(
-    valid_books=Count('books', filter=Q(books__title__icontains='Куба') & Q(books__pages=50)),
+    valid_books=Count('books', filter=Q(books__title__icontains='Куба') | Q(books__pages=50)),
     total_books=Count('books')
     ).filter(valid_books__gte=F('total_books') / 2)
 
@@ -325,6 +329,7 @@ date_now = timezone.now()
 authors = Author.objects.annotate(
     age=ExpressionWrapper(
         (date_now.year - F('birthday__year')) -
+        # если день рождения ещё не наступил в этом году то выражение вернёт True/1 и вычтется год из даты
         ((date_now.month, date_now.day) < (F('birthday__month'), F('birthday__day'))),
         output_field=fields.IntegerField()
     )
@@ -375,8 +380,10 @@ book.my_genres.add(*[genre1, genre2])
 # полностью ПЕРЗАПИСЫВАЕТ связанные записи, если передать пустой список\кортеж то связи очистятся
 book.my_genres.set(genre1, genre2)
 
+genres_to_remove = ['genre1', 'genre2']
 book.my_genres.remove(genre)  # Удаляет жанр из книги
 genre.my_books.remove(book)  # Удаляет книгу из жанра
+book.my_genres.remove(*genres_to_remove)   # можно удалить связи с распаковкой
 
                                                     # Subquery
 # Subquery возвращает значения, которые можно использовать:
@@ -395,13 +402,6 @@ Genre.objects.annotate(max_rating=Subquery(BookG.objects.filter(genres=OuterRef(
                                            .values('genres').annotate(max_rating=Max('reviews__rating'))
                                            .values('max_rating')[:1])).filter(max_rating__gt=4)
 
-
-# 3. Аннотация: средний рейтинг книг для каждого автора
-authors = Author.objects.annotate(avg_book_rating=Subquery(BookG.objects.filter(author=OuterRef('pk'))
-                                               .values('author').annotate(avg_rating=Avg('reviews__rating'))
-                                               .values('avg_rating')[:1]))
-# что по сути равно -
-Author.objects.annotate(avg_book_rating=Avg('books__reviews__rating'))
 
 Department, Employee, Order = 0, 0, 0
 # рассчитать среднюю зарплату для каждого отдела, но только по работникам, чей возраст превышает определённый порог.
@@ -423,12 +423,13 @@ Book.objects.annotate(
         .annotate(max_rating=Max('reviews__rating'))
         .values('max_rating')[:1]
     )
-)  # тут если пробовать обращаться с помощю стр. аннотации получится рекурсия 'author__books__reviews__rating'?
+)  # тут можно Book.objects.annotate(max_rating_by_author=Max('author__books__reviews__rating'))
 
 # получаем пользователей, у которых средний рейтинг книг выше некоторого порога, используя подзапрос для вычис среднего.
 User.objects.annotate(
     avg_rating=Subquery(
         Book.objects.filter(owner=OuterRef('pk'))
+        .values('owner')
         .annotate(avg_book_rating=Avg('reviews__rating'))
         .values('avg_book_rating')[:1]
     )
@@ -445,6 +446,24 @@ Order.objects.annotate(
     )
 ).filter(total_price=F('max_order_price'))
 # тут по видемому тоже получится рекурсия если обращаться черес стр анотацию Max('user__orders__total-price')?
+
+#                                      ЕДИНСТВЕННЫЙ ПРИМЕР ГДЕ САБКВЕРИ НЕОБХОДИМ !!!!!!!!!!!!!!!!!!!!!
+Book.objects.annotate(
+    max_rating_by_author=Subquery(
+        Book.objects.filter(author=OuterRef('author'), published_year=2025)
+        .values('author')
+        .annotate(max_rating=Max('reviews__rating'))
+        .values('max_rating')[:1]
+    )
+)
+
+# Задача 9: Найди авторов, у которых есть хотя бы одна книга с количеством отзывов меньше, чем количество страниц книги,
+# но при этом средний рейтинг их книг выше 4.
+# Exists, Django создаёт SQL-запрос, который проверяет только наличие данных, не загружая их в память.
+revs_les_then_pages = BookG.objects.filter(author=OuterRef('pk')).values('author')\
+                                              .annotate(count_revs=Count('reviews')).filter(pages__gt=F('count_revs'))
+ats = Author.objects.annotate(avg_rate=Avg('books__reviews__rating'), more_pages=Exists(revs_les_then_pages))\
+                                                                                .filter(avg_rate__gt=4, more_pages=True)
 
 from django.db.models.functions import Coalesce
 

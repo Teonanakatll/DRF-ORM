@@ -1,6 +1,9 @@
 from django.contrib.auth.models import User
+from django.db import IntegrityError
+from django.db.models import Count, Case, When, IntegerField, F
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import mixins
+from rest_framework import mixins, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -8,16 +11,17 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticate
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
 
-from gpt4.models import BookG, UserBookGRelation, Review
+from gpt4.models import BookG, UserBookGRelation, Review, Genre, Author
 from gpt4.my_custom_filters import BookGFilterSet, BookGFilterBackends
-from gpt4.permissions import CreateOnlyAuthenticated, IsOwnerOrStaff
-from gpt4.serializers import BookGSerializer, UserBookGRelationSerializer, UserSerializer
+from gpt4.permissions import CreateOnlyAuthenticated, IsOwnerOrStaff, IsOwnerOrStaffOrReadOnly
+from gpt4.serializers import BookGSerializer, UserBookGRelationSerializer, UserSerializer, ReviewSerializer, \
+    GenreSerializer, AuthorSerializer
 from gpt4.utils import cons
-from store.permissions import IsOwnerOrStaffOrReadOnly
 
 
 class BookGViewSet(ModelViewSet):
-    queryset = BookG.objects.all().prefetch_related('genres')
+    queryset = BookG.objects.annotate(annotated_likes=Count(Case(When(userbookgrelation__like=True, then=1), output_field=IntegerField())),
+                                     owner_name=F('owner__username')).select_related('owner', 'author').prefetch_related('genres').order_by('id')
     serializer_class = BookGSerializer
     permission_classes = [CreateOnlyAuthenticated, IsOwnerOrStaffOrReadOnly]
 
@@ -43,40 +47,18 @@ class BookGViewSet(ModelViewSet):
     # в URL. Например, если у тебя есть URL типа /books/{pk}/review/, то pk будет обязательным, так как detail=True.
     # Если pk=None, это означает, что можно вызвать метод без указания конкретного объекта, и в этом случае нужно
     # предусмотреть логику для работы с этим значением.
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=['get'], permission_classes=[AllowAny])
     def review(self, request, pk=None):
         book = self.get_object()
-        # логика добавления рецензии
-        review_text = request.data.get('content')
-        review_rating = request.data.get('rating')
 
+        revs = Review.objects.filter(book=book)
 
-        review_anon = request.data.get('is_anonymous', False)  # берём значение или False по умолчанию
-        is_anonymous = bool(review_anon) if isinstance(review_anon, (bool, str, int)) else False
+        # data используется для валидации и создания новых объектов, которые передаются из не сейф методов запросов
+        # serializer = ReviewSerializer(data=data, many=True)
+        # instance используется для сериализации существующих объектов.
+        serializer = ReviewSerializer(instance=revs, many=True)  # или serializer = ReviewSerializer(revs, many=True)
 
-        # if review_text and review_rating:
-        #     review = Review.objects.create(book=book, user=request.user, content=review_text,
-        #                                    rating=review_rating, is_anonymous=is_anonymous)
-
-        # сериалайзер всё коректно отрабатывает и проверяет сам, в крайнем случае (хотя мне уже что создавать записи
-        # нужно только через сериалайзер) в экшене вызываем full_clean() который подтянет все валидаторы из полей и по
-        # сути отработает как и обычные валидаторы сериализатора, если в шеле не срабатывает валидация чойсов
-        # и всех мест в коде где вручную будут создаваться записи и если
-        # забыть вызвать full_clean() отработает кастомный валидатор модели
-        if review_text and review_rating:
-            review = Review(book=book, user=request.user, content=review_text,
-                                           rating=review_rating, is_anonymous=is_anonymous)
-            try:
-                # проверяем валидацию на уровне модели
-                review.full_clean()
-                review.save()   # теперь сохраняем обьект если валидация прошла успешно
-
-                return Response({'message': 'Review added successfully!'}, status=201)
-            except ValidationError as e:
-                return Response({'error': e.messages}, status=400)
-
-            # return Response({'message': 'Review added successfully!'}, status=201)
-        # return Response({'error': 'Review or rating missing'}, status=400)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class UserBookGRelationVew(mixins.UpdateModelMixin, GenericViewSet):
     queryset = UserBookGRelation.objects.all()
@@ -93,7 +75,10 @@ class UserBookGRelationVew(mixins.UpdateModelMixin, GenericViewSet):
     # get_object() чтобы или получить или создать обьект используя реквест юзера и айди совсем другой модели, тоесть
     # если бы я запрашивал запись по айди данной модели метод получения записи переопределять не нужно было бы
     def get_object(self):
-        obj, create = UserBookGRelation.objects.update_or_create(user=self.request.user, book_id=self.kwargs['book'])
+        # проверяем что существует книга с указанным id
+        book = get_object_or_404(BookG, id=self.kwargs['book'])
+
+        obj, create = UserBookGRelation.objects.update_or_create(user=self.request.user, book=book)
         return obj
 
 class UserView(mixins.ListModelMixin, mixins.RetrieveModelMixin, GenericViewSet):
@@ -106,3 +91,11 @@ class UserView(mixins.ListModelMixin, mixins.RetrieveModelMixin, GenericViewSet)
     def list_books(self, request, pk=None):
         books = BookG.objects.filter(owner_id=pk)
         return Response(BookGSerializer(books, many=True).data, status=200)
+
+class GenreViewSet(ModelViewSet):
+    queryset = Genre.objects.all()
+    serializer_class = GenreSerializer
+
+class AuthorViewSet(ModelViewSet):
+    queryset = Author.objects.all()
+    serializer_class = AuthorSerializer

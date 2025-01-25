@@ -1,133 +1,104 @@
-from aiogram import types, Router, F
-from aiogram.enums import ParseMode
-from aiogram.filters import CommandStart, Command, or_f
+from aiogram import F, types, Router
+from aiogram.filters import CommandStart
+from aiogram.types import CallbackQuery
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from bot.database.orm_query import (
+    orm_add_to_cart,
+    orm_add_user,
+)
+
 from bot.filters.chat_types import ChatTypeFilter
-from aiogram.utils.formatting import as_list, as_marked_section, Bold
-
-
-from bot.kbds import reply
-from bot.kbds.reply import test_kb
-from gpt4.utils import cons
+from bot.handlers.menu_rocessing import get_menu_content
+from bot.kbds.inline import get_callback_btns, MenuCallBack
 
 user_private_router = Router()
-user_private_router.message.filter(ChatTypeFilter(['private']))
+user_private_router.message.filter(ChatTypeFilter(["private"]))
 
-# отслеживание события отправки сообщения
+
+# обрабатываем только команду /start всё остальное обрабатывается через callback клавиатуры
 @user_private_router.message(CommandStart())
-# async - позволяет обрабатывать задачи (например, получение сообщений от Telegram API) без блокировки основного потока.
-async def start_smd(message: types.Message):
-    # из файла с клавиатурой указываем нашу клавиатуру, если клавиатура созданна через ReplyKeyboardBuilder, то вызываем
-    # метод as_markup() и передаём в него параметры
-    await message.answer('Привет я виртуальный помощник!', reply_markup=reply.start_kb3.as_markup(
-                                                resize_keyboard=True, input_field_placeholder='Что вас интересует?'))
+async def start_cmd(message: types.Message, session: AsyncSession):
+    # get_menu_content() - находится в menu_processing, будет отправлять изображение и клавиатуру
+    media, replay_markup = await get_menu_content(session, level=0, menu_name='main')
 
-# @user_private_router.message(F.text.lower() == 'меню')
-# префикс '/' - в Comand() указан по умолчанию, служит для указания условия ИЛИ, чтобы в аргументе хэндлера обрабатывать
-# и команду и фильтры
-@user_private_router.message(or_f(Command('menu'), (F.text.lower() == 'меню')))
-async def menu_cmd(message: types.Message):
-    # удаляем клавиатуру при активации меню
-    await message.answer('Вот меню:', reply_markup=reply.del_kbd)
+    await message.answer_photo(media.media, caption=media.caption, reply_markup=replay_markup)
 
-mag = ['О магазине', 'о магазине']
-# @user_private_router.message(or_f(Command('about'), (F.text == 'О магазине'), (F.text == 'о магазине')))
-# праверяем есть ли строка в списке
-@user_private_router.message(or_f(Command('about'), (F.text.in_(mag))))
-# @user_private_router.message(Command('about'))
-async def about_cmd(message: types.Message):
-    cons(message.text)
-    await message.answer('О нас:')
 
-@user_private_router.message(F.text.lower() == 'варианты оплаты')
-@user_private_router.message(Command('payment'))
-async def payment_cmd(message: types.Message):
-
-    text = as_marked_section(
-        Bold('Варианты оплаты:'),
-        'Картой в боте',
-        'При получении карта/кеш',
-        'В заведении',
-        marker='💎'
+# функция добавляет пользователя в бд и создаёт обьект корзины привязаннфй к этому пользователю
+async def add_to_cart(callback: types.CallbackQuery, callback_data: MenuCallBack, session: AsyncSession):
+    user = callback.from_user
+    await orm_add_user(
+        session,
+        user_id=user.id,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        phone=None,
     )
-    await message.answer(text.as_html())
-    # parse_mode=ParseMode.HTML указываем в Dispatcher()
-    await message.answer('<i>Способы оплаты:</i>')                    # italic
-    await message.answer('<s>Способы оплаты:</s>')                    # зачёркнутый
-    await message.answer('<em>Способы оплаты:</em>')                  # italic
-    await message.answer('<code>Способы оплаты:</code>')              # стиль кода
-    await message.answer('<pre>Способы оплаты:</pre>')                # ответ
-    await message.answer('<blockquote>Способы оплаты:</blockquote>')  # цитата с кавычками
-    await message.answer('<strong>Способы оплаты:</strong>')          # bold
-    await message.answer('<b>Способы оплаты:</b>')                    # bold
-    await message.answer('<ins>Способы оплаты:</ins>')                # подчёркнутый
+    await orm_add_to_cart(session, user_id=user.id, product_id=callback_data.product_id)
+    # show_alert=True - чтобы убрать сообщение нужно будет нажать Ок
+    await callback.answer('Товар добавлен в корзину.', show_alert=True)
 
-# функцию можно декорировать несколькими декораторами
-@user_private_router.message((F.text.lower().contains('доставк')) | (F.text.lower() == 'варианты'))
-@user_private_router.message(Command('shipping'))
-async def shipping_cmd(message: types.Message):
-    text = as_list(
-        as_marked_section(
-            Bold('Варианты доставки/заказа:'),
-            'Курьер',
-            'Самовынос (сейчас прибегу заберу)',
-            'Покушаю у вас (сейчас прибегу)',
-            marker='🍏'
-        ),
-        as_marked_section(
-            Bold('Нельзя:'),
-            'Почта',
-            'Голуби',
-            marker='❌'
-        ),
-        sep='\n_______________________________________\n'
+
+# вызываем метод filter() у нашего кастомного класса фабрики колбэков чтобы отлавливать все сообщения с
+# префиксом меню который мы выбрали при инициализации класса
+# но чтобы получить в нужном формате данные которые передаюся через фабрику колбэков и с помощю неё формируются,
+# нам необходимо указать callback_data: MenuCallBack
+@user_private_router.callback_query(MenuCallBack.filter())
+async def user_menu(callback: CallbackQuery, callback_data: MenuCallBack, session: AsyncSession):
+
+    # если событие отправленно кнопкой 'Купить', меню остаётся темже просто добавляем товар в корзину
+    if callback_data.menu_name == 'add_to_cart':
+        await add_to_cart(callback, callback_data, session)
+        return
+
+    # вызываем функцию async def get_menu_content() - чтобы сформировать клавиатуру в
+    # зависимости от переданного level и запроса изображения баннера в зависимости от переданного menu_name
+    media, reply_markup = await get_menu_content(
+        session,
+        level=callback_data.level,
+        menu_name=callback_data.menu_name,
+        category=callback_data.category,
+        page=callback_data.page,
+        product_id=callback_data.product_id,
+        # id аккаутна телеграмм берём просто из callback
+        user_id=callback.from_user.id,
     )
-    await message.answer(text.as_html())
 
-# # магические фильтры: .photo, .audio и тд, фильтры можно комбинировать ',' - и, '|' - или, '&' - и
-# @user_private_router.message((F.text.lower().contains('доставк')) | (F.text.lower() == 'варианты'))
-# async def shipping_cmd(message: types.Message):
-#     await message.answer('Это магический фильтр!')
+    # ток как тут мы уже редактируем сообщение то нам не нужно разбирать его на .medua/.caption,
+    # передаём просто экземрляр InputMediaPhoto()
+    await callback.message.edit_media(media=media, reply_markup=reply_markup)
+    await callback.answer()
 
-# инвертирует выражение, отлавливать всё что не подходит под фильтр
-# @user_private_router.message(~(F.text.lower().contains('варианты доставки')))
 
-# магические фильтры: .photo, .audio и тд
-@user_private_router.message(F.text.lower().contains('варианты доставки'))
-async def shipping_cmd(message: types.Message):
-    await message.answer('<s>Это магический фильтр2!</s>')
+####################   ПРИМЕР ПЕРЕДАЧИ ПОЗИЦИОННЫХ АРГУМЕНТОВ
+def CommandStarrrrt():
+    pass
 
-# представление для отображения клавиатуры контактов
-@user_private_router.message(F.text.lower().contains('контакты'))
-async def get_menu_contacts(message: types.Message):
-    await message.answer('Меню контактов 🎛', reply_markup=test_kb)
+# @user_private_router.message(CommandStarrrrt())
+async def start_cmd(message: types.Message):
+    await message.answer("Привет, я виртуальный помощник",
+                         # создаём кнопку при нажатии на которую отправляется callback_query сообщение каторое будет
+                         # отлавливаться другим хэндлером
+                         reply_markup=get_callback_btns(btns={
+                             'Нажми меня': 'some_1'
+                         }))
 
-@user_private_router.message(F.contact)
-async def get_contact(message: types.Message):
-    await message.answer(f'Номер получен')
-    await message.answer(str(message.contact))
-    cons(message.contact)
 
-@user_private_router.message(F.location)
-async def get_location(message: types.Message):
-    await message.answer(f'Локация получена')
-    await message.answer(str(message.location))
-    cons(message.location)
+@user_private_router.callback_query(F.data.startswith('some_'))
+async def counter(callback: types.CallbackQuery):
+    number = int(callback.data.split('_')[-1])
 
-# # отслеживание события отправки сообщения, если хэндлер в другом файле в него можно прокинуть бота, через bot. - можно
-# # посмотреть все доступные методы, bot - используется если в прокте несколько ботов
-# @user_private_router.message()
-# async def echo(message: types.Message):
-#     text = message.text
-#
-#     # if text in ['Привет', 'привет', 'hi', 'hello']:
-#     #     await message.answer('И тебе привет!')
-#     # elif text in ['Пока', 'покеда', 'пока', 'досвидания']:
-#     #     await message.answer('И тебе пока!')
-#     # else:
-#     #     await message.answer(f'{message.chat.username} сам такой - "{message.text}"!')
-#
-#     # await bot.send_message(message.from_user.id, 'Ответ')
-#     await  message.answer(message.text)
-#     # ответить с упоминанием автора (цитата)
-#     await  message.reply(message.text)
-#
+    # callback.message.edit_text() - ДЛЯ ТОГО ЧТОБЫ НЕ ОТПРАВЛЯТЬ НОВОЕ СООБЩЕНИЕ ОТВЕТА А РЕДАКТИРОВАТЬ СТАРОЕ
+    # автоматически в callback_query и в сообщение подставляеются данные счётчика который увеличивается на 1
+    # также у сообщения можно редактировать: edit_caption, edit_date, edit_live_location, edit_media, edit_reply_markup
+    await callback.message.edit_text(
+        text=f"Нажатий - {number}",
+        # создаём кнопку
+        reply_markup=get_callback_btns(btns={
+            'Нажми еще раз': f'some_{number + 1}'
+        }))
+
+# Пример для видео как делать не нужно:
+# menu_level_menuName_category_page_productID
+# НУЖО ИСПОЛЬЗОВАТЬ ФАБРМКУ КОЛБЭКОВ

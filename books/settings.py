@@ -169,13 +169,6 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# from rich.traceback import install
-# install(show_locals=True)
-
-# SHELL_PLUS_PRE_IMPORTS = [
-#     'my_imports',
-# ]
-
 REST_FRAMEWORK = {
     # 'DEFAULT_AUTHENTICATION_CLASSES': [
     #     'rest_framework.authentication.SessionAuthentication',

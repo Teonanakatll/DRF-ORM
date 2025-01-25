@@ -12,6 +12,14 @@ from django.db.models import UniqueConstraint
 # Поле часто используется в запросах? (Использовать db_index=True)
 # Поле является внешним ключом? (Использовать related_name, related_query_name)
 # Поле имеет ограниченный набор значений? (Использовать choices)
+from gpt4.utils import cons
+
+# from django.utils.text import slugify
+# def save(self, *args, **kwargs):
+#     if not self.slug:
+#         self.slug = slugify(self.title)
+#     super().save(*args, **kwargs)
+
 
 class Author(models.Model):
     name = models.CharField(max_length=100, verbose_name='Имя')
@@ -19,6 +27,7 @@ class Author(models.Model):
     # поля, как правило, хранят пустую строку, а не NULL, чтобы избежать путаницы.
     # blank управляет валидацией в форме, а null - тем, как значения хранятся в базе данных.
     birthday = models.DateField(blank=True, null=True, verbose_name='Год рождения')
+    biography = models.TextField(blank=True, verbose_name='Биография')
 
     def __str__(self):
         return f'Имя автора {self.name}'
@@ -68,7 +77,8 @@ class BookGenre(models.Model):
     priority = models.PositiveSmallIntegerField(verbose_name='Приоритет жанра', default=1)
 
     def __str__(self):
-        return f'{self.book.title} - {self.genre.name} (Приоритет: {self.priority}'
+        cons(f'{self.book.title} - {self.genre.name} (Приоритет: {self.priority})')
+        return f'{self.book.title} - {self.genre.name} (Приоритет: {self.priority})'
 
     class Meta:
         verbose_name = 'Связь книга жанр'
@@ -105,8 +115,9 @@ class UserBookGRelation(models.Model):
         ]
 
     def clean(self):
-        if self.hate_rate not in dict(self.HATE_CHOICES).keys():
-            raise ValidationError(f'Invalid hate_rate. Choice a valid value from {dict(self.HATE_CHOICES).keys()}, your :{self.hate_rate}')
+        valid_choices = [choice[0] for choice in self.HATE_CHOICES]
+        if self.hate_rate not in valid_choices:
+            raise ValidationError(f'Invalid hate_rate. Choice a valid value from {", ".join(map(str, valid_choices))}, your :{self.hate_rate}')
         super().clean()
 
     # Это определение конструктора класса UserBookRelation. Конструктор вызывается при создании нового экземпляра этого
@@ -137,6 +148,9 @@ class UserBookGRelation(models.Model):
         # создаём флаг в который вернёт True если запись создаётся, и False если запись уже существует и просо обновл.
         creating = not self.pk
 
+        # Метод clean() автоматически не вызывается при прямом вызове .save() (если ты не вызываешь его вручную), но
+        # будет вызван при валидации формы или сериализатора. Поэтому, чтобы везде работала проверка, лучше
+        # явно прописывать вызов self.clean() в методе save() модели.
         self.clean()             # проверяем что значение не выходит за пределы чойсов
 
         # чтобы не сломать логику родительского метода save() и не перезаписать его, вызываем его и передаём аргументы
@@ -146,6 +160,9 @@ class UserBookGRelation(models.Model):
         # вызываем нашу кастомную функцию установки рейтинга
         if self.old_rate != new_rate or creating:
             set_avg_hate_rate(self.book)
+
+        # Обновляем значение self.old_rate, чтобы оно всегда соответствовало текущему значению hate_rate
+        self.old_rate = self.hate_rate  # для того, чтобы при следующем обновлении сравнивать правильные значения
 
 
 class Review(models.Model):
@@ -177,3 +194,15 @@ class Review(models.Model):
         constraints = [
             UniqueConstraint(fields=['user', 'book'], name='unique_constrain_review')
         ]
+
+    # валидация чойса
+    def clean(self):
+        valid_choices = [choice[0] for choice in self.RATING]
+        if self.rating not in valid_choices:
+            raise ValidationError(f'Invalid hate_rate. Choice a valid value from {", ".join(map(str, valid_choices))}, your :{self.rating}')
+        super().clean()
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        # чтобы не сломать логику родительского метода save() и не перезаписать его, вызываем его и передаём аргументы
+        super().save(*args, **kwargs)

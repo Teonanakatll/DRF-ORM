@@ -20,7 +20,7 @@ from django.template.defaulttags import url
 from django.urls import path, include
 from rest_framework.routers import SimpleRouter
 
-from gpt4.views import BookGViewSet, UserBookGRelationVew, UserView
+from gpt4.views import BookGViewSet, UserBookGRelationVew, UserView, GenreViewSet, AuthorViewSet
 from store.views import auth, logout_github_view
 
 from store.views import BookViewSet, UserBookRelationView
@@ -38,9 +38,11 @@ router = SimpleRouter()
 # Book !!!!!!!!!!!!!
 router.register(r'book', BookViewSet)
 router.register(r'book_relation', UserBookRelationView)
-router.register(r'bookg', BookGViewSet, basename='my')
-router.register(r'bookg_relation', UserBookGRelationVew, basename='my_rel')
-router.register(r'users', UserView, basename='users')
+router.register(r'api/bookg', BookGViewSet, basename='bookg')
+router.register(r'api/bookg/relations', UserBookGRelationVew, basename='bookg-relation')
+router.register(r'api/genre', GenreViewSet, basename='genre')
+router.register(r'api/author', AuthorViewSet, basename='author')
+router.register(r'api/users', UserView, basename='user')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

@@ -35,13 +35,17 @@ class BookGFilterBackends(BaseFilterBackend):
         reviews_min_count = request.query_params.get('reviews_min_count', None)
 
         if reviews_min_count is not None:   # проверку на None пройдёт всё что не None - 0/''/[]/False
-            # добавляем аннотацию
-            queryset = queryset.annotate(review_count=Count('review'))
-            # фильтруем по минимальному количеству рецензий
-            queryset = queryset.filter(reviews__count__gt=reviews_min_count)
+            if str(reviews_min_count).isdigit():
+                # добавляем аннотацию
+                queryset = queryset.annotate(reviews_count=Count('reviews'))
+                # фильтруем по минимальному количеству рецензий
+                queryset = queryset.filter(reviews_count__gt=reviews_min_count)
+            else:
+                return
 
         # return queryset
 
         if author_imya:
             return queryset.filter(author__name__icontains=author_imya)
+
         return queryset

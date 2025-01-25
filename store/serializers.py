@@ -21,6 +21,8 @@ class BooksSerializer(ModelSerializer):
 
     # read_only=True - только для чтения, его не нужно передавать с POST/PUT/PATCH
     annotated_likes = serializers.IntegerField(read_only=True)
+
+    # так как это кеширующее поле его необходимо выводить с параметром read_only=True
     rating = serializers.DecimalField(max_digits=3, decimal_places=2, read_only=True)
 
     # в source= через точечную анотацию идём по связям owner.client.username чтобы указать источник данных,

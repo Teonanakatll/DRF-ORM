@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from django.db import models
 
-from gpt4.utils import cons
+# from gpt4.utils import cons
 
 
 class Book(models.Model):

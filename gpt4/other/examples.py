@@ -2,7 +2,7 @@ from django.utils import timezone
 from datetime import timedelta
 
 from django.db.models import Count, Avg, Q, Case, When, Value, Max, CharField, Sum, F, ExpressionWrapper, IntegerField, \
-    FloatField, Min
+    FloatField, Min, OuterRef, Subquery
 
 from gpt4.models import BookG, Author, Review, Genre
 
@@ -315,3 +315,104 @@ month = timezone.now() - relativedelta(months=1)
 BookG.objects.filter(created_at__gt=month).annotate(reviews_five_count=Count('reviews__rating',
                             filter=Q(reviews__rating=5)), reviews_three_count=Count('reviews',
                             filter=Q(reviews__rating=3))).filter(reviews_five_count__gt=F('reviews_three_count'))
+
+# задача 2
+# Составь запрос для нахождения жанров, в которых есть хотя бы одна книга с рейтингом ниже 2, но все остальные книги имеют рейтинг выше 4.
+genres = Genre.objects.filter(books__reviews__rating__lt=2).annotate(all_books=Count('books'),
+            books_gt_4=Count('books', filter=Q(books__reviews__rating__gt=4))).filter(Q(books_gt_4=F('all_books') - 1))
+
+# задача 3
+# Выведи список авторов, у которых средний рейтинг всех книг выше глобального среднего рейтинга, но есть хотя бы одна книга с рейтингом ниже 2
+glob_avg_rating = BookG.objects.aggregate(avg_all=Avg('reviews__rating'))['avg_all']
+authors = Author.objects.filter(books__reviews__rating__lt=2).annotate(avg_book_rating=Avg('books__reviews__rating'))\
+                                                                          .filter(avg_book_rating__gt=glob_avg_rating)
+
+# задача 5
+# Выведи авторов, чьи книги в жанре "фэнтези" имеют лучший средний рейтинг по сравнению с книгами других жанров.
+books_avg_not_fantazy = BookG.objects.exclude(genres__name__icontains='фэнтези').filter(author=OuterRef('pk'))\
+                                      .values('author').annotate(avg_rate=Avg('reviews__rating')).values('avg_rate')[:1]
+authors = Author.objects.annotate(avg_fantazy=Avg('books__reviews__rating', filter=Q(books__title__icontains='фэнтези')),
+                            avg_not_fantazy=Subquery(books_avg_not_fantazy)).filter(avg_fantazy__gt=F('avg_not_fantazy'))
+
+# задача 6
+# Составь запрос для нахождения авторов, у которых все книги имеют рейтинг ниже глобального среднего, но среди этих
+# книг есть хотя бы одна книга с рейтингом выше 4.
+glob_avg_rating = BookG.objects.aggregate(avg_all=Avg('reviews__rating'))['avg_all']
+authors = Author.objects.filter(books__reviews__rating__gt=4).annotate(total=Count('books'),
+          low_glob=Count('books', filter=Q(books__reviews__rating__lt=glob_avg_rating))).filter(low_glob=F('total') - 1)
+
+# задача 7
+# Выведи список жанров, в которых средний рейтинг книг за последний год выше среднего рейтинга всех жанров за этот же период.
+one_year = timezone.now() - relativedelta(years=1)
+total_avg = Genre.objects.aggregate(total=Avg('books__reviews__rating', filter=Q(books__reviews__created_at__gt=one_year)))['total']
+genres = Genre.objects.annotate(avg_rate=Avg('books__reviews__rating',
+                                      filter=Q(books__reviews__created_at__gt=one_year))).filter(avg_rate__gt=total_avg)
+
+# задача 8
+# Найди книги, у которых количество рецензий больше 50 и средний рейтинг всех рецензий выше 4
+books = BookG.objects.annotate(reviews_total=Count('reviews'), avg_rate=Avg('reviews__rating'))\
+                                                                          .filter(reviews_total__gt=50, avg_rate__gt=4)
+
+# задача 9
+# Составь запрос для нахождения жанров, в которых более 20% книг имеют рейтинг ниже 3
+genres = Genre.objects.annotate(total_books=Count('books'), count_books_abowe_3=Count('books',
+filter=Q(books__reviews__rating__lt=3)), percent_abowe_3=ExpressionWrapper((F('count_books_abowe_3') * 1.0) /
+                        F('total_books') * 100, output_field=IntegerField())).filter(percent_abowe_3__gt=20)
+
+# задача 10
+# Найди авторов, у которых все книги имеют рейтинг ниже глобального среднего рейтинга, но есть хотя бы одна книга с рейтингом выше 4.
+glob_range = BookG.objects.aggregate(glob=Avg('reviews__rating'))['glob']
+authors = Author.objects.filter(books__reviews__rating__gt=4).annotate(all_books=Count('books'),
+books_lt_glob=Count('books', filter=Q(books__reviews__rating__lt=glob_range))).filter(books_lt_glob=F('all_books') - 1)
+
+# задача 11
+# Составь запрос для нахождения книг с количеством рецензий больше среднего для всех книг в базе данных.
+avg_all_books_reviews = BookG.objects.annotate(avg_revs=Count('reviews')).aggregate(total=Avg('avg_revs'))['total']
+books = BookG.objects.annotate(count_revs=Count('reviews')).filter(count_revs__gt=avg_all_books_reviews)
+
+# задача 12
+# Найди книги, у которых количество рецензий больше 10, но средний рейтинг всех рецензий ниже 3
+books = BookG.objects.annotate(rev_count=Count('reviews'), rev_avg=Avg('reviews__rating')).filter(rev_count__gt=10, rev_avg__lt=3)
+
+# задача 14
+# Составь запрос для нахождения книг, где максимальный рейтинг среди всех рецензий выше 4, а средний рейтинг всех рецензий ниже 3
+books = BookG.objects.annotate(max_rate=Max('reviews__rating'), avg_rate=Avg('reviews__rating')).filter(max_rate__gt=4, avg_rate__lt=3)
+
+# задача 15
+# Найди жанры, в которых есть хотя бы одна книга с рейтингом выше 4, но средний рейтинг всех книг в жанре ниже 3
+genres = Genre.objects.filter(books__reviews__rating__gt=4)\
+                                    .annotate(avg_books_rate=Avg('books__reviews__rating')).filter(avg_books_rate__lt=3)
+
+# задача 16
+# Выведи авторов, чьи книги имеют максимальный рейтинг среди всех книг в базе данных.
+all_max_rate = BookG.objects.aggregate(mx_rate=Max('reviews__rating'))['mx_rate']
+authors = Author.objects.filter(books__reviews__rating=all_max_rate)
+
+# задача 17
+# Составь запрос для нахождения жанров, в которых есть хотя бы одна книга с рейтингом ниже 3 и хотя бы одна книга с рейтингом выше 4.
+genres = Genre.objects.filter(books__reviews__rating__lt=3).filter(books__reviews__rating__gt=4).distinct()
+
+# задача 18
+# Найди книги, которые имеют меньше 5 рецензий, но средний рейтинг всех рецензий выше 4.
+books = BookG.objects.annotate(count_revs=Count('reviews'), avg_rate=Avg('reviews__rating')).filter(count_revs__lt=5, avg_rate__gt=4)
+
+# задача 19
+# Выведи жанры, в которых средний рейтинг книг выше 3, но у каждой книги в жанре есть хотя бы один отзыв с рейтингом ниже 2.
+genres = Genre.objects.annotate(avg_rate=Avg('books__reviews__rating'), all_books=Count('books'), books_rate_below_2=
+Count('books', filter=Q(books__reviews__rating__lt=2))).filter(Q(avg_rate__gt=3) & Q(all_books=F('books_rate_below_2')))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

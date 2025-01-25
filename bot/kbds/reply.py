@@ -4,6 +4,10 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from gpt4.utils import cons
 
 
+############   CallbackQuery — это данные, которые отправляются боту, когда пользователь нажимает на кнопку с
+# ##########   callback_data в инлайн-клавиатуре.
+
+
 def get_keyboard(
         *btns: str,
         placeholder: str = None,
