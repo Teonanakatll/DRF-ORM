@@ -13,7 +13,9 @@ from rest_framework.viewsets import ModelViewSet, GenericViewSet
 
 from gpt4.models import BookG, UserBookGRelation, Review, Genre, Author
 from gpt4.my_custom_filters import BookGFilterSet, BookGFilterBackends
-from gpt4.permissions import CreateOnlyAuthenticated, IsOwnerOrStaff, IsOwnerOrStaffOrReadOnly
+from gpt4.pagination import BookGPaginator
+from gpt4.permissions import CreateOnlyAuthenticated, IsOwnerOrStaff, IsOwnerOrStaffOrReadOnly, IsStaffOrReadOnly, \
+    IsUserOrStaffOrReadOnly
 from gpt4.serializers import BookGSerializer, UserBookGRelationSerializer, UserSerializer, ReviewSerializer, \
     GenreSerializer, AuthorSerializer
 from gpt4.utils import cons
@@ -33,6 +35,8 @@ class BookGViewSet(ModelViewSet):
     # поиск имеет смысл если он происходит по двум полям, если он проходит по одному полю то достаточно фильтра
     search_fields = ['title', 'content']
     ordering_fields = ['created_at', 'id']
+    pagination_class = BookGPaginator
+
 
     # этот метод вызывается в CreateView в методе create() POST запроса, после валидации данных но перед сохранением
     # обьекта, служит для добавления кастомной логики. автоматическае дабавление owner при создании книги
@@ -81,10 +85,11 @@ class UserBookGRelationVew(mixins.UpdateModelMixin, GenericViewSet):
         obj, create = UserBookGRelation.objects.update_or_create(user=self.request.user, book=book)
         return obj
 
-class UserView(mixins.ListModelMixin, mixins.RetrieveModelMixin, GenericViewSet):
-    queryset = User.objects.all()
+class UserView(mixins.ListModelMixin, mixins.RetrieveModelMixin,
+                                    mixins.UpdateModelMixin, GenericViewSet):
+    queryset = User.objects.prefetch_related('owner_books', 'readers_books').all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, IsUserOrStaffOrReadOnly]
 
     @action(detail=True, methods=['get'], serializer_class=BookGSerializer, url_path='books',
                                                                             permission_classes=[IsOwnerOrStaff])
@@ -93,9 +98,12 @@ class UserView(mixins.ListModelMixin, mixins.RetrieveModelMixin, GenericViewSet)
         return Response(BookGSerializer(books, many=True).data, status=200)
 
 class GenreViewSet(ModelViewSet):
-    queryset = Genre.objects.all()
+    queryset = Genre.objects.prefetch_related('books').all()
     serializer_class = GenreSerializer
+    permission_classes = [IsStaffOrReadOnly]
 
-class AuthorViewSet(ModelViewSet):
-    queryset = Author.objects.all()
+class AuthorView(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.CreateModelMixin,
+                                    mixins.UpdateModelMixin, GenericViewSet):
+    queryset = Author.objects.prefetch_related('books').all()
     serializer_class = AuthorSerializer
+    permission_classes = [IsAuthenticated]

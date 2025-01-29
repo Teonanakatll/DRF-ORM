@@ -14,6 +14,15 @@ class IsOwnerOrStaffOrReadOnly(BasePermission):
             request.user.is_authenticated and (obj.owner == request.user or request.user.is_staff)
         )
 
+class IsUserOrStaffOrReadOnly(BasePermission):
+    def has_object_permission(self, request, view, obj):
+        return bool(
+            request.method in SAFE_METHODS or
+            request.user and
+            # пров. что юзер отправивший запрос и owner в модели один и тот же юзер или юзер отностися к персоналу прил.
+            request.user.is_authenticated and (obj.pk == request.user.pk or request.user.is_staff)
+        )
+
 class CreateOnlyAuthenticated(BasePermission):
     def has_permission(self, request, view):
         if request.method == 'POST':
@@ -28,7 +37,12 @@ class IsOwnerOrStaff(BasePermission):
         # проверяем, пытается ли пользователь получить книги своего аккаунта
         owner_id = view.kwargs.get('pk')
         if owner_id is None or not owner_id.isdigit():
-            cons(owner_id)
+
             return False
 
         return int(owner_id) == request.user.id
+
+class IsStaffOrReadOnly(BasePermission):
+    """Разрешает безопасные методы всем, POST/PUT/PATCH/DELETE только админам"""
+    def has_permission(self, request, view):
+        return bool(request.method in SAFE_METHODS or request.user.is_staff)

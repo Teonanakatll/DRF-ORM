@@ -20,6 +20,13 @@ books = BookG.objects.all()
 genre = Genre.objects.get(id=1)
 author = Author.objects.get(id=1)
 
+fields = [field.name for field in Review._meta.get_fields()]
+fields = ['id', 'content', 'book', 'user', 'rating', 'created_at', 'is_anonymous']
+
+# этот способ уберёт все поля связей
+fields = [field.name for field in Author._meta.get_fields() if not field.is_relation]
+
+
                                                 # ОБРАЩЕНИЕ К ПОЛЯМ СВЯЗАННЫХ МОДЕЛЕЙ
 # прямая связь ForeignKey
 book.author

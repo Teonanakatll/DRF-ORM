@@ -26,17 +26,30 @@ from gpt4.utils import cons
 # Генератор кода для клиента или сервера API.
 # Например, ты можешь на основе описания API сгенерировать клиент для React, Python или даже другой сервер.
 
+# class BookSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = BookG
+#         fields = '__all__'
+#         depth = 1  # Это автоматически подтянет связанные модели
+# — это параметр в Meta классе ModelSerializer, который автоматически добавляет вложенные данные для связанных моделей.
+# Значение указывает, насколько глубоко нужно заглянуть в связи.
+
 class BookGLinkSerializer(ModelSerializer):
     """Служит для отрисовки названия книги и ссылки на неё в модели Genre"""
-
+    # слаг передаётся для формирования красивого урла на фронте
+    book_slug = serializers.CharField(required=False, source='slug')
     book_url = serializers.HyperlinkedIdentityField(view_name='bookg-detail')
 
     class Meta:
         model = BookG
-        fields = ('id', 'title', 'book_url')
+        fields = ('id', 'title', 'book_slug', 'book_url')
 
 class GenreLinkSerializer(ModelSerializer):
     """Служит для отрисовки имени и ссылки в модели BookG"""
+
+    # required=False - оставляем возможность редактировать его, но делаем поле
+    # необязательным для отправки на сервер тк оно автоинкрементируется через slugify,
+    genre_slug = serializers.CharField(required=False, source='slug')
 
     # HyperlinkedIdentityField предназначено для создания ссылки на текущий объект. Оно автоматически возвращает URL,
     # ведущий на детальный эндпоинт (detail-view) текущего объекта.
@@ -44,10 +57,14 @@ class GenreLinkSerializer(ModelSerializer):
 
     class Meta:
         model = Genre
-        fields = ('id', 'name', 'genre_url')
+        fields = ('id', 'name', 'genre_slug', 'genre_url')
 
 class GenreSerializer(ModelSerializer):
     """Основной сериализатор жанров"""
+
+    # required=False - оставляем возможность редактировать его, но делаем поле
+    # необязательным для отправки на сервер тк оно автоинкрементируется через slugify,
+    genre_slug = serializers.CharField(required=False, source='slug')
 
     # тут мы используем поле только для отрисовки связанных записей поэтому нам не нужно делать отдельное поле
     # PrimaryKeyRelatedField() чтобы иметь возможность изменять через запросс это поле
@@ -55,12 +72,26 @@ class GenreSerializer(ModelSerializer):
 
     class Meta:
         model = Genre
-        fields = ('id', 'name', 'description', 'book_list')
+        fields = ('id', 'name', 'genre_slug', 'description', 'book_list')
+
+# class AuthorLinkSerializer(ModelSerializer):
+#     author_slug = serializers.CharField(required=False, source='slug')
+#     author_link = serializers.HyperlinkedIdentityField(view_name='author_detail')
+#     class Meta:
+#         model = Author
+#         fields = ('id', 'name', 'author_slug', 'author_link')
 
 
 class BookGSerializer(ModelSerializer):
+    # required=False - оставляем возможность редактировать его, но делаем поле
+    # необязательным для отправки на сервер тк оно автоинкрементируется через slugify,
+    book_slug = serializers.CharField(required=False, source='slug')
+
     # клиенту отправляется отформатированное поле created_at изменённое в to_representation()
+    # Если в модели поле типа DateField, то сериализатор будет возвращать объект datetime.date.
+    # Это объект, который представляет только дату без времени
     view_created_at = serializers.DateTimeField(read_only=True)
+    # view_created_at = serializers.DateField(format='%Y-%m-%d')  # Указываем формат
 
     # данное поле на самом деле с автоинкрементом поэтому просто пример поля только для чтения и не обязательное
     created_at = serializers.DateTimeField(write_only=True, required=False)
@@ -90,6 +121,7 @@ class BookGSerializer(ModelSerializer):
     # входные данные при создании или обновлении объекта.
     author_name = serializers.ReadOnlyField(source='author.name')
 
+    author_slug = serializers.ReadOnlyField(source='author.slug')
 
     # HyperlinkedRelatedField предназначено для создания ссылки на связанный объект.
     author_url = serializers.HyperlinkedRelatedField(
@@ -100,7 +132,7 @@ class BookGSerializer(ModelSerializer):
 
     # так как мы указали это поле в sourct другого поля, чтобы принимать данные этого поля нам необхдиммо обьявить
     # PrimaryKeyRelatedField()
-    author = serializers.PrimaryKeyRelatedField(queryset=Author.objects.all(), required=False)
+    author = serializers.PrimaryKeyRelatedField(queryset=Author.objects.all(), required=False, write_only=True)
 
 
     # HyperlinkedModelSerializer
@@ -111,7 +143,7 @@ class BookGSerializer(ModelSerializer):
 
     class Meta:
         model = BookG
-        fields = ('id', 'title', 'content', 'author', 'author_name', 'author_url', 'owner_name', 'pages', 'annotated_likes', 'avg_hate_rate', 'view_created_at', 'created_at', 'genres', 'book_genres')
+        fields = ('id', 'title', 'book_slug', 'content', 'author', 'author_name', 'author_slug', 'author_url', 'owner_name', 'pages', 'annotated_likes', 'avg_hate_rate', 'view_created_at', 'created_at', 'genres', 'book_genres')
 
     # добавляем валидацию чтобы проверить существует ли owner в базе данных
     # def validate_owner(self, value):
@@ -146,16 +178,32 @@ class UserBookGRelationSerializer(ModelSerializer):
         fields = ('id', 'book', 'user', 'like', 'in_bookmarks', 'hate_rate')
 
 class UserSerializer(ModelSerializer):
+    my_books = BookGLinkSerializer(many=True, required=False, source='owner_books')
+    read_list = BookGLinkSerializer(many=True, required=False, source='readers_books')
+
     class Meta:
         model = User
-        fields = ('id', 'username', 'first_name', 'last_name', 'is_staff')
+        fields = ('id', 'username', 'first_name', 'last_name', 'is_staff', 'my_books', 'read_list')
 
 class ReviewSerializer(ModelSerializer):
+
+    created_at = serializers.DateTimeField(read_only=True)
+
     class Meta:
         model = Review
-        fields = ('content', 'rating', 'is_anonymous')
+        fields = ('id', 'content', 'book', 'user', 'rating', 'created_at', 'is_anonymous')
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+
+        # переопределяем поле возвращаем только дату
+        representation['created_at'] = instance.created_at.date()
+
+        return representation
 
 class AuthorSerializer(ModelSerializer):
+    author_slug = serializers.CharField(required=False, source='slug')
+    book_list = BookGLinkSerializer(many=True, required=False, source='books')
     class Meta:
         model = Author
-        fields = ('id', 'name', 'birthday', 'biography')
+        fields = ('id', 'name', 'author_slug', 'birthday', 'biography', 'book_list')

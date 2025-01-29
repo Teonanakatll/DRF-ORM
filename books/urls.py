@@ -15,12 +15,13 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.template.defaulttags import url
 from django.urls import path, include
 from rest_framework.routers import SimpleRouter
 
-from gpt4.views import BookGViewSet, UserBookGRelationVew, UserView, GenreViewSet, AuthorViewSet
+from gpt4.views import BookGViewSet, UserBookGRelationVew, UserView, GenreViewSet, AuthorView
 from store.views import auth, logout_github_view
 
 from store.views import BookViewSet, UserBookRelationView
@@ -41,7 +42,7 @@ router.register(r'book_relation', UserBookRelationView)
 router.register(r'api/bookg', BookGViewSet, basename='bookg')
 router.register(r'api/bookg/relations', UserBookGRelationVew, basename='bookg-relation')
 router.register(r'api/genre', GenreViewSet, basename='genre')
-router.register(r'api/author', AuthorViewSet, basename='author')
+router.register(r'api/author', AuthorView, basename='author')
 router.register(r'api/users', UserView, basename='user')
 
 urlpatterns = [
@@ -63,7 +64,7 @@ urlpatterns = [
 
     # path('my/', include('gpt4.urls')),
     # path('che/', include('store.urls'))
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 urlpatterns += router.urls
 

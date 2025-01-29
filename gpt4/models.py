@@ -14,15 +14,14 @@ from django.db.models import UniqueConstraint
 # Поле имеет ограниченный набор значений? (Использовать choices)
 from gpt4.utils import cons
 
-# from django.utils.text import slugify
-# def save(self, *args, **kwargs):
-#     if not self.slug:
-#         self.slug = slugify(self.title)
-#     super().save(*args, **kwargs)
+# pip install python-slugify
+from slugify import slugify
 
+# откат на определённую миграцию python manage.py migrate gpt4 0023
 
 class Author(models.Model):
     name = models.CharField(max_length=100, verbose_name='Имя')
+    slug = models.SlugField(blank=True, unique=True, db_index=True, verbose_name='url')
     # Обычно для строковых полей рекомендуется использовать blank=True вместо null=True, так как в Django строковые
     # поля, как правило, хранят пустую строку, а не NULL, чтобы избежать путаницы.
     # blank управляет валидацией в форме, а null - тем, как значения хранятся в базе данных.
@@ -31,6 +30,11 @@ class Author(models.Model):
 
     def __str__(self):
         return f'Имя автора {self.name}'
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "Автор"
@@ -42,10 +46,16 @@ class UserProfile(models.Model):
 
 class Genre(models.Model):
     name = models.CharField(max_length=50, verbose_name='Жанр')
+    slug = models.SlugField(blank=True, unique=True, db_index=True, verbose_name='url')
     description = models.TextField(verbose_name='Описание', blank=True, default='Нет описания')
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = 'Жанр'
@@ -53,6 +63,7 @@ class Genre(models.Model):
 
 class BookG(models.Model):
     title = models.CharField(max_length=100, verbose_name='Заголовок')
+    slug = models.SlugField(blank=True, unique=True, db_index=True, verbose_name='url')
     content = models.TextField(verbose_name='Содержание')
     author = models.ForeignKey(Author, related_name='books', null=True, on_delete=models.SET_NULL, verbose_name='Автор')
     pages = models.PositiveSmallIntegerField(verbose_name='Количество страниц')
@@ -65,6 +76,12 @@ class BookG(models.Model):
 
     def __str__(self):
         return f'{self.title}'
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
+
 
     class Meta:
         verbose_name = "Книга"
