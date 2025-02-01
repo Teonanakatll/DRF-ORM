@@ -38,11 +38,17 @@ class BookGLinkSerializer(ModelSerializer):
     """Служит для отрисовки названия книги и ссылки на неё в модели Genre"""
     # слаг передаётся для формирования красивого урла на фронте
     book_slug = serializers.CharField(required=False, source='slug')
+    cover_url = serializers.SerializerMethodField()
     book_url = serializers.HyperlinkedIdentityField(view_name='bookg-detail')
 
     class Meta:
         model = BookG
-        fields = ('id', 'title', 'book_slug', 'book_url')
+        fields = ('id', 'title', 'book_slug', 'cover_url', 'book_url')
+
+    def get_cover_url(self, obj):
+        request = self.context.get('request')
+        if obj.cover:
+            return request.build_absolute_uri(obj.cover.url)
 
 class GenreLinkSerializer(ModelSerializer):
     """Служит для отрисовки имени и ссылки в модели BookG"""
@@ -81,11 +87,22 @@ class GenreSerializer(ModelSerializer):
 #         model = Author
 #         fields = ('id', 'name', 'author_slug', 'author_link')
 
+def delete_old_file(instance, field_name):
+    '''функция удаляет старое фото при добавлении нового'''
+    file = getattr(instance, field_name)
+    if file:
+        file.delete(save=False)
+
 
 class BookGSerializer(ModelSerializer):
     # required=False - оставляем возможность редактировать его, но делаем поле
     # необязательным для отправки на сервер тк оно автоинкрементируется через slugify,
     book_slug = serializers.CharField(required=False, source='slug')
+
+    # формируем полный урл к фото с помощю метода, SerializerMethodField() - только для чтения
+    cover_url = serializers.SerializerMethodField()
+    # указываем что поле только для записи и необязательное
+    cover = serializers.ImageField(write_only=True, required=False)
 
     # клиенту отправляется отформатированное поле created_at изменённое в to_representation()
     # Если в модели поле типа DateField, то сериализатор будет возвращать объект datetime.date.
@@ -143,7 +160,19 @@ class BookGSerializer(ModelSerializer):
 
     class Meta:
         model = BookG
-        fields = ('id', 'title', 'book_slug', 'content', 'author', 'author_name', 'author_slug', 'author_url', 'owner_name', 'pages', 'annotated_likes', 'avg_hate_rate', 'view_created_at', 'created_at', 'genres', 'book_genres')
+        fields = ('id', 'title', 'book_slug', 'cover_url', 'cover', 'content', 'author', 'author_name', 'author_slug', 'author_url', 'owner_name', 'pages', 'annotated_likes', 'avg_hate_rate', 'view_created_at', 'created_at', 'genres', 'book_genres')
+
+    # Старые файлы не удаляются сами, необходимо обрабатывать удаление вручную
+    def update(self, instance, validated_data):
+        if 'cover' in validated_data:
+            delete_old_file(instance, 'cover')
+        return super().update(instance, validated_data)
+
+    def get_cover_url(self, obj):
+        request = self.context.get('request')
+        if obj.cover:
+            return request.build_absolute_uri(obj.cover.url)
+        return 'У книги нет обложки'
 
     # добавляем валидацию чтобы проверить существует ли owner в базе данных
     # def validate_owner(self, value):

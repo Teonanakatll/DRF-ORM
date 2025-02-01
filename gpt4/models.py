@@ -1,7 +1,12 @@
+import os
+
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.core.files.storage import default_storage
 from django.db import models
 from django.db.models import UniqueConstraint
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 
 # Когда ты смотришь на модель или поле, полезно задавать себе такие вопросы:
 #
@@ -16,6 +21,23 @@ from gpt4.utils import cons
 
 # pip install python-slugify
 from slugify import slugify
+
+
+def delete_image_from_storage(instance, image_field_name):
+    """
+    Удаляет изображение из хранилища для заданного поля модели.
+
+    :param instance: Экземпляр модели.
+    :param image_field_name: Название поля, где хранится изображение.
+    """
+    image_field = getattr(instance, image_field_name, None)
+    if image_field and image_field.name:  # Проверяем, что поле не пустое
+        image_path = image_field.path
+        if os.path.exists(image_path):  # Проверяем, существует ли файл
+            default_storage.delete(image_path)
+            # print(f"Изображение {image_path} успешно удалено.")
+        else:
+            cons(f"Файл {image_path} не найден.")
 
 # откат на определённую миграцию python manage.py migrate gpt4 0023
 
@@ -40,9 +62,11 @@ class Author(models.Model):
         verbose_name = "Автор"
         verbose_name_plural = "Авторы"
 
+
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile', verbose_name='Пользователь')
     pw = models.CharField(max_length=30, blank=True, verbose_name='Пароль')
+
 
 class Genre(models.Model):
     name = models.CharField(max_length=50, verbose_name='Жанр')
@@ -61,8 +85,10 @@ class Genre(models.Model):
         verbose_name = 'Жанр'
         verbose_name_plural = 'Жанры'
 
+
 class BookG(models.Model):
     title = models.CharField(max_length=100, verbose_name='Заголовок')
+    cover = models.ImageField(upload_to='book_covers', blank=True, null=True, verbose_name='Фото книги')
     slug = models.SlugField(blank=True, unique=True, db_index=True, verbose_name='url')
     content = models.TextField(verbose_name='Содержание')
     author = models.ForeignKey(Author, related_name='books', null=True, on_delete=models.SET_NULL, verbose_name='Автор')
@@ -71,8 +97,10 @@ class BookG(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, blank=True, null=True, verbose_name='Дата добавления')
     # кеширующее поле
     avg_hate_rate = models.DecimalField(default=0, max_digits=3, decimal_places=2, verbose_name='Средний рейтинг')
-    owner = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name='owner_books', verbose_name='Хозяин')
-    readers = models.ManyToManyField(User, through='UserBookGRelation', related_name='readers_books', verbose_name='Читатели')
+    owner = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name='owner_books',
+                              verbose_name='Хозяин')
+    readers = models.ManyToManyField(User, through='UserBookGRelation', related_name='readers_books',
+                                     verbose_name='Читатели')
 
     def __str__(self):
         return f'{self.title}'
@@ -82,11 +110,17 @@ class BookG(models.Model):
             self.slug = slugify(self.title)
         super().save(*args, **kwargs)
 
-
     class Meta:
         verbose_name = "Книга"
         verbose_name_plural = "Книги"
         ordering = ('id',)
+
+
+@receiver(post_delete, sender=BookG)
+def delete_book_cover(sender, instance, **kwargs):
+    """Автоматически удаляет изображение из хранилища при удалении обьекта"""
+    # вызываем универсальную функцию удаления изображений
+    delete_image_from_storage(instance, 'cover')
 
 class BookGenre(models.Model):
     book = models.ForeignKey(BookG, on_delete=models.CASCADE, verbose_name='Книга')
@@ -103,6 +137,7 @@ class BookGenre(models.Model):
         constraints = [
             UniqueConstraint(fields=['book', 'genre'], name='unique_book_genre')
         ]
+
 
 class UserBookGRelation(models.Model):
     HATE_CHOICES = [
@@ -134,7 +169,8 @@ class UserBookGRelation(models.Model):
     def clean(self):
         valid_choices = [choice[0] for choice in self.HATE_CHOICES]
         if self.hate_rate not in valid_choices:
-            raise ValidationError(f'Invalid hate_rate. Choice a valid value from {", ".join(map(str, valid_choices))}, your :{self.hate_rate}')
+            raise ValidationError(
+                f'Invalid hate_rate. Choice a valid value from {", ".join(map(str, valid_choices))}, your :{self.hate_rate}')
         super().clean()
 
     # Это определение конструктора класса UserBookRelation. Конструктор вызывается при создании нового экземпляра этого
@@ -168,7 +204,7 @@ class UserBookGRelation(models.Model):
         # Метод clean() автоматически не вызывается при прямом вызове .save() (если ты не вызываешь его вручную), но
         # будет вызван при валидации формы или сериализатора. Поэтому, чтобы везде работала проверка, лучше
         # явно прописывать вызов self.clean() в методе save() модели.
-        self.clean()             # проверяем что значение не выходит за пределы чойсов
+        self.clean()  # проверяем что значение не выходит за пределы чойсов
 
         # чтобы не сломать логику родительского метода save() и не перезаписать его, вызываем его и передаём аргументы
         super().save(*args, **kwargs)
@@ -216,7 +252,8 @@ class Review(models.Model):
     def clean(self):
         valid_choices = [choice[0] for choice in self.RATING]
         if self.rating not in valid_choices:
-            raise ValidationError(f'Invalid hate_rate. Choice a valid value from {", ".join(map(str, valid_choices))}, your :{self.rating}')
+            raise ValidationError(
+                f'Invalid hate_rate. Choice a valid value from {", ".join(map(str, valid_choices))}, your :{self.rating}')
         super().clean()
 
     def save(self, *args, **kwargs):

@@ -7,6 +7,7 @@ from rest_framework import mixins, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
@@ -38,8 +39,30 @@ class BookGViewSet(ModelViewSet):
     pagination_class = BookGPaginator
 
 
+    # Если не ModelViewSet или миксины, то в APIView данные файлов и фото извлекаются так
+    # тоесть по сути формируем статус ответа, если и нужно добавить чтонебудь своё то всеравно лучше
+    # это прописать во вьюсете или миксине, ведь в них уже настроенны ответы и респонс с данными модели
+
+    #    # для парсинга изображений
+    # parser_classes = (MultiPartParser, FormParser)
+
+    # def post(self, request, *args, **kwargs):
+    #     serializer = BookGSerializer(data=request.data)
+    #     if serializer.is_valid():
+    #         serializer.save()
+    #         return Response(serializer.data, status=201)
+    #     return Response(serializer.errors, status=400)
+    #
+    # def put(self, request, *args, **kwargs):
+    #     return self.update(request, *args, **kwargs)
+    #
+    # def patch(self, request, *args, **kwargs):
+    #     return self.partial_update(request, *args, **kwargs)
+
+
     # этот метод вызывается в CreateView в методе create() POST запроса, после валидации данных но перед сохранением
     # обьекта, служит для добавления кастомной логики. автоматическае дабавление owner при создании книги
+
     def perform_create(self, serializer):
         if isinstance(self.request.user, User):
             serializer.validated_data['owner'] = self.request.user
